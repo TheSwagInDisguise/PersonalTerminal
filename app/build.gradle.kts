@@ -206,6 +206,9 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons)
+    // Foldables / large screens: window layout info (fold position, posture) and adaptive size classes.
+    implementation(libs.androidx.window)
+    implementation(libs.androidx.compose.material3.adaptive)
     implementation(libs.androidx.navigation.compose)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
