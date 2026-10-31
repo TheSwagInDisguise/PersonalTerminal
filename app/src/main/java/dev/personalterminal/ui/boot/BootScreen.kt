@@ -54,7 +54,7 @@ fun BootScreen(app: PersonalTerminalApp, onDone: () -> Unit) {
     val scope = rememberCoroutineScope()
     var shown by remember { mutableIntStateOf(0) }
     var username by remember { mutableStateOf("") }
-    var theme by remember { mutableStateOf(ThemeFamily.DRACULA) }
+    var theme by remember { mutableStateOf(ThemeFamily.SIGNAL) }
     val ctx = androidx.compose.ui.platform.LocalContext.current
     // ---- restore-from-Drive on first launch ----
     var restoreMode by remember { mutableStateOf(false) }

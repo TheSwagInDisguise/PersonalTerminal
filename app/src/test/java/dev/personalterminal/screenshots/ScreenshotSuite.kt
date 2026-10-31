@@ -164,7 +164,7 @@ class ScreenshotSuite {
     private fun shoot(
         name: String,
         tab: Tab,
-        theme: String = "dracula",
+        theme: String = "signal",
         dark: Boolean = true,
         crt: Boolean = false,
         content: @Composable (androidx.navigation.NavHostController) -> Unit,

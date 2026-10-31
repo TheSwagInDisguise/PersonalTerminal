@@ -67,7 +67,7 @@ class YearReviewTest {
     @Test
     fun `card is fixed width and mentions the year`() {
         val r = YearReview.compute(2026, data(), emptyList(), emptyList(), emptyList(), emptyList(), today)
-        val card = YearReview.card(r, "karthik@android")
+        val card = YearReview.card(r, "user@android")
         val lines = card.lines()
         assertTrue(lines.all { it.length == lines.first().length })
         assertTrue(card.contains("2026"))

@@ -79,7 +79,7 @@ private fun seedFoldSuite(app: PersonalTerminalApp) {
 }
 
 private fun baseSettings(onboarded: Boolean = false) = Settings(
-    themeName = "dracula",
+    themeName = "signal",
     themeMode = ThemeMode.DARK,
     username = DemoData.USERNAME,
     fontName = dev.personalterminal.ui.theme.ThemeFamily.fromId("dracula").font,

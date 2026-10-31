@@ -51,7 +51,8 @@ enum class ThemeFamily(val id: String, val label: String, val font: String = "je
     AMBER("amber", "Amber CRT", "vt323", "1978 phosphor terminal, crt recommended"),
     MATRIX("matrix", "Matrix", "vt323", "green phosphor / paper terminal"),
     HACKER("hacker", "Hacker", "space", "pure black, white text, one red accent"),
-    SYNTHWAVE("synthwave", "Synthwave '84", "space", "outrun magenta & cyan");
+    SYNTHWAVE("synthwave", "Synthwave '84", "space", "outrun magenta & cyan"),
+    SIGNAL("signal", "Signal", "jetbrains", "classified broadsheet, one lime signal");
 
     companion object {
         fun fromId(id: String): ThemeFamily = entries.firstOrNull { it.id == id } ?: DRACULA
@@ -77,6 +78,7 @@ object Palettes {
 
     fun get(family: ThemeFamily, dark: Boolean): TerminalPalette = when (family) {
         ThemeFamily.DRACULA -> if (dark) draculaDark else draculaLight
+        ThemeFamily.SIGNAL -> if (dark) signalDark else signalLight
         ThemeFamily.NORD -> if (dark) nordDark else nordLight
         ThemeFamily.SOLARIZED -> if (dark) solarizedDark else solarizedLight
         ThemeFamily.GRUVBOX -> if (dark) gruvboxDark else gruvboxLight
@@ -298,6 +300,24 @@ object Palettes {
         fg = Color(0xFF3B2F5C), fgDim = Color(0xFF9282B0), border = Color(0xFFCDBEDF),
         red = Color(0xFFD9203A), green = Color(0xFF1E9E6A), yellow = Color(0xFFB08A00), blue = Color(0xFF0E8F8D),
         purple = Color(0xFF7A4FD6), cyan = Color(0xFF0E8F8D), orange = Color(0xFFD86A1B), pink = Color(0xFFD1409E),
+    )
+
+    // ---- Signal (classified broadsheet, one lime signal) ------------------------
+    val signalDark = TerminalPalette(
+        id = "signal", name = "Signal", dark = true,
+        bg = Color(0xFF060606), bgAlt = Color(0xFF1F1F1F), bgHighlight = Color(0xFF252525),
+        fg = Color(0xFFE5E5E5), fgDim = Color(0xFF7A7A7A), border = Color(0xFF313131),
+        red = Color(0xFFE5484D), green = Color(0xFFC5FF4A), yellow = Color(0xFFD8D8D8),
+        blue = Color(0xFF9C9C9C), purple = Color(0xFFB5B5B5), cyan = Color(0xFFCFCFCF),
+        orange = Color(0xFFC5FF4A), pink = Color(0xFFA6A6A6),
+    )
+    val signalLight = TerminalPalette(
+        id = "signal", name = "Signal", dark = false,
+        bg = Color(0xFFEFEFE9), bgAlt = Color(0xFFE3E3DB), bgHighlight = Color(0xFFD7D7CD),
+        fg = Color(0xFF1A1A1A), fgDim = Color(0xFF6B6B62), border = Color(0xFFC9C9BE),
+        red = Color(0xFFB3322E), green = Color(0xFF597321), yellow = Color(0xFF595952),
+        blue = Color(0xFF7A7A72), purple = Color(0xFF8F8F86), cyan = Color(0xFF454540),
+        orange = Color(0xFF597321), pink = Color(0xFF8A8A80),
     )
 
     // ---- Matrix (pure green phosphor) -------------------------------------------

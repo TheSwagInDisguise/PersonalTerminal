@@ -18,7 +18,7 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
 data class Settings(
-    val themeName: String = "dracula",
+    val themeName: String = "signal",
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val username: String = "user",
     val hostname: String = "android",
@@ -191,7 +191,7 @@ class UserPrefs(private val context: Context) {
 
     val settings: Flow<Settings> = context.dataStore.data.map { p ->
         Settings(
-            themeName = p[Keys.THEME] ?: "dracula",
+            themeName = p[Keys.THEME] ?: "signal",
             themeMode = p[Keys.MODE]?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() } ?: ThemeMode.SYSTEM,
             username = p[Keys.USERNAME] ?: "user",
             hostname = p[Keys.HOSTNAME] ?: "android",

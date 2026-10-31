@@ -22,7 +22,7 @@ import kotlin.random.Random
  * `./gradlew screenshots` produces the same images.
  */
 object DemoData {
-    const val USERNAME = "karthik"
+    const val USERNAME = "user"
 
     suspend fun seed(app: PersonalTerminalApp, today: LocalDate = LocalDate.now()) {
         // Robolectric keeps static singletons (the Room instance) alive across test methods, so the
@@ -30,7 +30,7 @@ object DemoData {
         app.db.clearAllData()
         val prefs = app.prefs
         prefs.setUsername(USERNAME)
-        prefs.setTheme("dracula")
+        prefs.setTheme("signal")
         prefs.setOnboarded(true)
 
         val habits = app.habits
