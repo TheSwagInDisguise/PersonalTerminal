@@ -94,7 +94,7 @@ android {
     defaultConfig {
         applicationId = "dev.personalterminal"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = appVersionCode
         versionName = appVersionName
 

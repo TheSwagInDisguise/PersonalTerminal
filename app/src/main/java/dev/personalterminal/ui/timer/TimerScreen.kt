@@ -22,7 +22,11 @@ import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
@@ -59,6 +63,7 @@ import dev.personalterminal.ui.components.Comment
 import dev.personalterminal.ui.components.PromptLine
 import dev.personalterminal.ui.components.TermButton
 import dev.personalterminal.ui.components.TerminalPanel
+import dev.personalterminal.ui.components.rememberWindowFold
 import dev.personalterminal.ui.navigation.Routes
 import dev.personalterminal.ui.theme.Term
 
@@ -114,10 +119,9 @@ fun TimerScreen(app: PersonalTerminalApp, nav: NavHostController, initialHabitId
 
     val phaseColor = when (state.phase) { Phase.FOCUS, Phase.STOPWATCH -> p.orange; Phase.BREAK, Phase.LONG_BREAK -> p.cyan; Phase.IDLE -> p.green }
 
-    Column(
-        Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState()).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
+    val fold = rememberWindowFold()
+    val tabletopY = if (fold.isTabletop) fold.foldYDp else null
+    val topContent: @Composable ColumnScope.() -> Unit = {
         PromptLine(if (state.isStopwatch || (state.phase == Phase.IDLE && stopwatchMode)) "stopwatch" else "pomodoro", trailing = if (state.cycle > 0) "🍅 ×${state.cycle}" else null)
         if (state.phase == Phase.IDLE) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -150,7 +154,8 @@ fun TimerScreen(app: PersonalTerminalApp, nav: NavHostController, initialHabitId
             }
         }
         AsciiProgress(fraction = state.fraction, width = 32, color = phaseColor, modifier = Modifier.align(Alignment.CenterHorizontally))
-
+    }
+    val bottomContent: @Composable ColumnScope.() -> Unit = {
         // ---- controls ----
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             when {
@@ -223,5 +228,30 @@ fun TimerScreen(app: PersonalTerminalApp, nav: NavHostController, initialHabitId
             TermButton("edit in settings", color = p.fgDim, onClick = { nav.navigate(Routes.SETTINGS) })
         }
         Spacer(Modifier.height(24.dp))
+    }
+    if (tabletopY != null) {
+        // Flex Mode: the countdown stays on the top half (anchored at the hinge), controls and
+        // panels below it – each half scrolls on its own so both are reachable without crossing
+        // the fold.
+        Column(Modifier.fillMaxSize()) {
+            Column(
+                Modifier.fillMaxWidth().height(tabletopY).statusBarsPadding().verticalScroll(rememberScrollState()).padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                content = topContent,
+            )
+            Column(
+                Modifier.weight(1f).fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).verticalScroll(rememberScrollState()).padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                content = bottomContent,
+            )
+        }
+    } else {
+        Column(
+            Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState()).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            topContent()
+            bottomContent()
+        }
     }
 }

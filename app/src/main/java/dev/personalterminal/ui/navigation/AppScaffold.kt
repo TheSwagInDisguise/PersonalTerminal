@@ -1,6 +1,5 @@
 package dev.personalterminal.ui.navigation
 
-import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -20,22 +19,14 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.window.core.layout.WindowWidthSizeClass
-import androidx.window.layout.FoldingFeature
-import androidx.window.layout.WindowInfoTracker
-import kotlinx.coroutines.flow.emptyFlow
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Spacer
@@ -51,6 +42,7 @@ import androidx.navigation.navArgument
 import dev.personalterminal.PersonalTerminalApp
 import dev.personalterminal.data.prefs.Settings
 import dev.personalterminal.ui.boot.BootScreen
+import dev.personalterminal.ui.components.rememberWindowFold
 import dev.personalterminal.ui.habits.HabitDetailScreen
 import dev.personalterminal.ui.habits.HabitEditScreen
 import dev.personalterminal.ui.habits.HabitsScreen
@@ -108,18 +100,8 @@ fun AppScaffold(app: PersonalTerminalApp, settings: Settings, startRoute: String
     val sizeClass = currentWindowAdaptiveInfo().windowSizeClass.windowWidthSizeClass
     val expanded = sizeClass != WindowWidthSizeClass.COMPACT    // ≥600dp → side rail
     val veryWide = sizeClass == WindowWidthSizeClass.EXPANDED    // ≥840dp → split without a fold
-    val activity = LocalContext.current as? ComponentActivity
-    val layoutInfo by remember(activity) {
-        if (activity != null) WindowInfoTracker.getOrCreate(activity).windowLayoutInfo(activity) else emptyFlow()
-    }.collectAsState(initial = null)
-    val density = LocalDensity.current
-    val config = LocalConfiguration.current
-    val foldX: Dp? = layoutInfo?.displayFeatures
-        ?.filterIsInstance<FoldingFeature>()
-        ?.firstOrNull { it.orientation == FoldingFeature.Orientation.VERTICAL }
-        ?.bounds
-        ?.takeIf { b -> b.centerX() > 0 && b.centerX() < with(density) { config.screenWidthDp.dp.toPx() } }
-        ?.let { b -> with(density) { b.centerX().toFloat().toDp() } }
+    val fold = rememberWindowFold()                              // physical hinge + posture
+    val foldX = fold.foldXDp
     val split = veryWide || (expanded && foldX != null)
     // Destination lambdas may be composed from a graph that was built before a fold, so anything
     // layout-sensitive read *inside* composable() goes through this State (see composable(TODAY)).
@@ -247,6 +229,9 @@ private fun SideRail(nav: NavHostController, current: Tab?, settings: Settings) 
 @Composable
 internal fun StatusLine(nav: NavHostController, current: Tab?, settings: Settings) {
     val p = Term.palette
+    // Fold 5 cover screen (~344dp): five "[n:label]" tabs don't fit on one line in the wider
+    // terminal fonts (VT323 / Space Mono) – below 360dp the indices and brackets go.
+    val narrow = LocalConfiguration.current.screenWidthDp < 360
     Column(Modifier.fillMaxWidth().background(p.bgAlt)) {
         Box(Modifier.fillMaxWidth().height(1.dp).background(p.border))
         Row(
@@ -259,9 +244,14 @@ internal fun StatusLine(nav: NavHostController, current: Tab?, settings: Setting
         ) {
             Tab.entries.forEach { tab ->
                 val selected = tab == current
-                val label = if (selected) "[${tab.index}:${tab.label}]" else " ${tab.index}:${tab.label} "
+                val label = when {
+                    narrow -> tab.label
+                    selected -> "[${tab.index}:${tab.label}]"
+                    else -> " ${tab.index}:${tab.label} "
+                }
                 Text(
                     text = label,
+                    maxLines = 1,
                     color = if (selected) p.green else p.fgDim,
                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                     style = MaterialTheme.typography.labelMedium,
