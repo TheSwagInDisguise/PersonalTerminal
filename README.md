@@ -63,7 +63,7 @@ Re-run `screenshots` after an intentional UI change and commit the result.
 
 ## Install
 
-Grab `personal-terminal-<version>.apk` from the [latest release](https://github.com/KarthikGopi1234/PersonalTerminal/releases/latest)
+Grab `personal-terminal-<version>.apk` from the [latest release](https://github.com/TheSwagInDisguise/PersonalTerminal/releases/latest)
 and verify it against `SHA256SUMS.txt`. Requires Android 8.0+; the live status-bar countdown needs Android 16.
 On ColorOS / OxygenOS the island capsule appears once *Settings › Notifications & quick settings › Live alerts › App alert* is switched on for the app (off by default for third-party apps).
 
