@@ -1,0 +1,49 @@
+name: Render screenshot goldens
+
+# Re-bakes every README screenshot (phone + Fold 5 suites) from the current UI with Robolectric
+# and uploads them as an artifact — use when the goldens need regenerating but no layout change
+# is expected (e.g. a fresh render after toolchain updates, or regenerating on a bigger runner).
+# To ACCEPT an intentional UI change instead, run `./gradlew screenshots` locally and commit.
+# Pushing the downloaded PNGs then runs the regular `verifyScreenshots` gate on main.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    name: Render goldens
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GRADLE_OPTS: -Dorg.gradle.jvmargs="-Xmx3g -XX:MaxMetaspaceSize=768m -XX:+UseParallelGC -Dfile.encoding=UTF-8"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools platforms;android-36 build-tools;35.0.0
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Render every screen into screenshots/
+        run: ./gradlew screenshots --console=plain
+
+      - name: Upload rendered goldens
+        uses: actions/upload-artifact@v4
+        with:
+          name: rendered-goldens
+          path: screenshots/*.png
+          if-no-files-found: error
+          retention-days: 7
