@@ -27,6 +27,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,39 +56,49 @@ private val movements = listOf("automatic", "manual", "quartz", "solar", "spring
 fun WatchEditScreen(app: PersonalTerminalApp, nav: NavHostController, watchId: Long, startOnWishlist: Boolean = false) {
     val p = Term.palette
     val scope = rememberCoroutineScope()
+    // rememberSaveable: an edit in progress must survive a fold (cover ⇄ inner screen) – the
+    // activity is recreated and plain remember would reset every field back to the database.
+    // `original` stays a plain remember: Watch isn't saveable and is re-fetched in the effect.
     var original by remember { mutableStateOf<Watch?>(null) }
-    var loaded by remember { mutableStateOf(watchId == 0L) }
-    var brand by remember { mutableStateOf("") }
-    var model by remember { mutableStateOf("") }
-    var nickname by remember { mutableStateOf("") }
-    var reference by remember { mutableStateOf("") }
-    var movement by remember { mutableStateOf("") }
-    var caseSize by remember { mutableStateOf("") }
-    var color by remember { mutableStateOf("cyan") }
-    var notes by remember { mutableStateOf("") }
-    var lugWidth by remember { mutableStateOf("") }
-    var purchasePrice by remember { mutableStateOf("") }
-    var purchaseDate by remember { mutableStateOf("") }
-    var currentValue by remember { mutableStateOf("") }
-    var currency by remember { mutableStateOf("") }
-    var serviceInterval by remember { mutableStateOf("") }
-    var powerReserve by remember { mutableStateOf("") }
-    var complications by remember { mutableStateOf(setOf<String>()) }
-    var wishlist by remember { mutableStateOf(startOnWishlist) }
-    var targetPrice by remember { mutableStateOf("") }
-    var link by remember { mutableStateOf("") }
+    var loaded by rememberSaveable { mutableStateOf(watchId == 0L) }
+    var brand by rememberSaveable { mutableStateOf("") }
+    var model by rememberSaveable { mutableStateOf("") }
+    var nickname by rememberSaveable { mutableStateOf("") }
+    var reference by rememberSaveable { mutableStateOf("") }
+    var movement by rememberSaveable { mutableStateOf("") }
+    var caseSize by rememberSaveable { mutableStateOf("") }
+    var color by rememberSaveable { mutableStateOf("cyan") }
+    var notes by rememberSaveable { mutableStateOf("") }
+    var lugWidth by rememberSaveable { mutableStateOf("") }
+    var purchasePrice by rememberSaveable { mutableStateOf("") }
+    var purchaseDate by rememberSaveable { mutableStateOf("") }
+    var currentValue by rememberSaveable { mutableStateOf("") }
+    var currency by rememberSaveable { mutableStateOf("") }
+    var serviceInterval by rememberSaveable { mutableStateOf("") }
+    var powerReserve by rememberSaveable { mutableStateOf("") }
+    var complications by rememberSaveable { mutableStateOf(setOf<String>()) }
+    var wishlist by rememberSaveable { mutableStateOf(startOnWishlist) }
+    var targetPrice by rememberSaveable { mutableStateOf("") }
+    var link by rememberSaveable { mutableStateOf("") }
     val photo = rememberPhotoPickerState(initialPath = null, prefix = "watch")
-    var confirmDelete by remember { mutableStateOf(false) }
+    var confirmDelete by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(watchId) {
+        // After a fold/recreation `original` must be re-fetched (save/status/delete need it),
+        // but the form fields are only filled on the very first load: `loaded` comes back true
+        // through rememberSaveable, so a restored, half-typed form isn't clobbered by the DB.
+        val firstLoad = !loaded
         if (watchId != 0L) app.watches.watch(watchId)?.let { w ->
-            original = w; brand = w.brand; model = w.model; nickname = w.nickname; reference = w.reference; movement = w.movement
-            caseSize = w.caseSizeMm?.toString()?.removeSuffix(".0") ?: ""; color = w.color; notes = w.notes
-            lugWidth = w.lugWidthMm?.toString() ?: ""; purchasePrice = w.purchasePrice?.let { "%.0f".format(it) } ?: ""
-            purchaseDate = w.purchaseDay?.let { java.time.LocalDate.ofEpochDay(it).toString() } ?: ""; currentValue = w.currentValue?.let { "%.0f".format(it) } ?: ""
-            currency = w.currency; serviceInterval = if (w.serviceIntervalMonths > 0) w.serviceIntervalMonths.toString() else ""
-            powerReserve = if (w.powerReserveHours > 0) w.powerReserveHours.toString() else ""; complications = w.complicationSet
-            wishlist = w.status == Watch.STATUS_WISHLIST; targetPrice = w.targetPrice?.let { "%.0f".format(it) } ?: ""; link = w.link
+            original = w
+            if (firstLoad) {
+                brand = w.brand; model = w.model; nickname = w.nickname; reference = w.reference; movement = w.movement
+                caseSize = w.caseSizeMm?.toString()?.removeSuffix(".0") ?: ""; color = w.color; notes = w.notes
+                lugWidth = w.lugWidthMm?.toString() ?: ""; purchasePrice = w.purchasePrice?.let { "%.0f".format(it) } ?: ""
+                purchaseDate = w.purchaseDay?.let { java.time.LocalDate.ofEpochDay(it).toString() } ?: ""; currentValue = w.currentValue?.let { "%.0f".format(it) } ?: ""
+                currency = w.currency; serviceInterval = if (w.serviceIntervalMonths > 0) w.serviceIntervalMonths.toString() else ""
+                powerReserve = if (w.powerReserveHours > 0) w.powerReserveHours.toString() else ""; complications = w.complicationSet
+                wishlist = w.status == Watch.STATUS_WISHLIST; targetPrice = w.targetPrice?.let { "%.0f".format(it) } ?: ""; link = w.link
+            }
             if (photo.photoPath == null) photo.photoPath = w.photoPath
         }
         loaded = true

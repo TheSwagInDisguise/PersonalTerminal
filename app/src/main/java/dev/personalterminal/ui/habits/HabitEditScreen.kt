@@ -23,10 +23,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -63,44 +63,54 @@ fun HabitEditScreen(app: PersonalTerminalApp, nav: NavHostController, habitId: L
     val scope = rememberCoroutineScope()
     val routines by remember { app.habits.observeRoutines() }.collectAsStateWithLifecycle(initialValue = emptyList())
 
-    var loaded by remember { mutableStateOf(habitId == 0L) }
+    // rememberSaveable: an edit in progress must survive a fold (cover ⇄ inner screen) – the
+    // activity is recreated and plain remember would reset every field back to the database.
+    // `original` stays a plain remember: Habit isn't saveable and is re-fetched in the effect.
+    var loaded by rememberSaveable { mutableStateOf(habitId == 0L) }
     var original by remember { mutableStateOf<Habit?>(null) }
-    var name by remember { mutableStateOf(initialName ?: "") }
-    var type by remember { mutableStateOf(HabitType.CHECKBOX) }
-    var target by remember { mutableIntStateOf(1) }
-    var unit by remember { mutableStateOf("") }
-    var schedule by remember { mutableStateOf(ScheduleType.DAILY) }
-    var daysMask by remember { mutableIntStateOf(127) }
-    var timesPerWeek by remember { mutableIntStateOf(3) }
-    var selectedRoutine by remember { mutableStateOf(routineId) }
-    var color by remember { mutableStateOf("green") }
-    var notes by remember { mutableStateOf("") }
-    var confirmDelete by remember { mutableStateOf(false) }
-    var negative by remember { mutableStateOf(false) }
-    var reminder by remember { mutableIntStateOf(-1) }
-    var checkIn by remember { mutableStateOf(false) }
-    var items by remember { mutableStateOf(listOf<String>()) }
-    var newItem by remember { mutableStateOf("") }
-    var timeOfDay by remember { mutableStateOf("") }
-    var focusMin by remember { mutableIntStateOf(0) }
-    var breakMin by remember { mutableIntStateOf(0) }
-    var healthMetric by remember { mutableStateOf("") }
-    var minTarget by remember { mutableIntStateOf(0) }
-    var rampTo by remember { mutableIntStateOf(0) }
-    var rampWeeks by remember { mutableIntStateOf(0) }
-    var rampStartDay by remember { mutableStateOf(0L) }
-    var anchorId by remember { mutableStateOf(0L) }
-    var anchorRemind by remember { mutableStateOf(true) }
-    var area by remember { mutableStateOf("") }
+    var name by rememberSaveable { mutableStateOf(initialName ?: "") }
+    var type by rememberSaveable { mutableStateOf(HabitType.CHECKBOX) }
+    var target by rememberSaveable { mutableStateOf(1) }
+    var unit by rememberSaveable { mutableStateOf("") }
+    var schedule by rememberSaveable { mutableStateOf(ScheduleType.DAILY) }
+    var daysMask by rememberSaveable { mutableStateOf(127) }
+    var timesPerWeek by rememberSaveable { mutableStateOf(3) }
+    var selectedRoutine by rememberSaveable { mutableStateOf(routineId) }
+    var color by rememberSaveable { mutableStateOf("green") }
+    var notes by rememberSaveable { mutableStateOf("") }
+    var confirmDelete by rememberSaveable { mutableStateOf(false) }
+    var negative by rememberSaveable { mutableStateOf(false) }
+    var reminder by rememberSaveable { mutableStateOf(-1) }
+    var checkIn by rememberSaveable { mutableStateOf(false) }
+    var items by rememberSaveable { mutableStateOf(listOf<String>()) }
+    var newItem by rememberSaveable { mutableStateOf("") }
+    var timeOfDay by rememberSaveable { mutableStateOf("") }
+    var focusMin by rememberSaveable { mutableStateOf(0) }
+    var breakMin by rememberSaveable { mutableStateOf(0) }
+    var healthMetric by rememberSaveable { mutableStateOf("") }
+    var minTarget by rememberSaveable { mutableStateOf(0) }
+    var rampTo by rememberSaveable { mutableStateOf(0) }
+    var rampWeeks by rememberSaveable { mutableStateOf(0) }
+    var rampStartDay by rememberSaveable { mutableStateOf(0L) }
+    var anchorId by rememberSaveable { mutableStateOf(0L) }
+    var anchorRemind by rememberSaveable { mutableStateOf(true) }
+    var area by rememberSaveable { mutableStateOf("") }
     val allHabits by remember { app.habits.observeActiveHabits() }.collectAsStateWithLifecycle(initialValue = emptyList())
     val settings by app.prefs.settings.collectAsStateWithLifecycle(initialValue = dev.personalterminal.data.prefs.Settings())
 
     LaunchedEffect(habitId) {
+        // After a fold/recreation `original` must be re-fetched (save/archive/delete need it),
+        // but the form fields are only filled on the very first load: `loaded` comes back true
+        // through rememberSaveable, so a restored, half-typed form isn't clobbered by the DB.
+        val firstLoad = !loaded
         if (habitId != 0L) app.habits.habit(habitId)?.let { h ->
-            original = h; name = h.name; type = h.type; target = h.target; unit = h.unit; schedule = h.schedule
-            daysMask = h.daysMask; timesPerWeek = h.timesPerWeek; selectedRoutine = h.routineId; color = h.color; notes = h.notes
-            negative = h.negative; reminder = h.reminderMinutes; checkIn = h.checkIn; items = h.checklistItems; timeOfDay = h.timeOfDay; focusMin = h.focusMinutes; breakMin = h.breakMinutes; healthMetric = h.healthMetric
-            minTarget = h.minTarget; rampTo = h.rampTo; rampWeeks = h.rampWeeks; rampStartDay = h.rampStartDay; anchorId = h.anchorId; anchorRemind = h.anchorRemind || h.anchorId == 0L; area = h.area
+            original = h
+            if (firstLoad) {
+                name = h.name; type = h.type; target = h.target; unit = h.unit; schedule = h.schedule
+                daysMask = h.daysMask; timesPerWeek = h.timesPerWeek; selectedRoutine = h.routineId; color = h.color; notes = h.notes
+                negative = h.negative; reminder = h.reminderMinutes; checkIn = h.checkIn; items = h.checklistItems; timeOfDay = h.timeOfDay; focusMin = h.focusMinutes; breakMin = h.breakMinutes; healthMetric = h.healthMetric
+                minTarget = h.minTarget; rampTo = h.rampTo; rampWeeks = h.rampWeeks; rampStartDay = h.rampStartDay; anchorId = h.anchorId; anchorRemind = h.anchorRemind || h.anchorId == 0L; area = h.area
+            }
         }
         loaded = true
     }

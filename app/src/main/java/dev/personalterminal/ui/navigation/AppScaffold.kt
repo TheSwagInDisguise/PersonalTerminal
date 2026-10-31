@@ -16,14 +16,17 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.window.core.layout.WindowWidthSizeClass
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Spacer
@@ -39,6 +42,7 @@ import androidx.navigation.navArgument
 import dev.personalterminal.PersonalTerminalApp
 import dev.personalterminal.data.prefs.Settings
 import dev.personalterminal.ui.boot.BootScreen
+import dev.personalterminal.ui.components.rememberWindowFold
 import dev.personalterminal.ui.habits.HabitDetailScreen
 import dev.personalterminal.ui.habits.HabitEditScreen
 import dev.personalterminal.ui.habits.HabitsScreen
@@ -86,9 +90,22 @@ fun AppScaffold(app: PersonalTerminalApp, settings: Settings, startRoute: String
 
     // Tablets / landscape phones / unfolded foldables: tmux-style split. The left pane keeps
     // today's list permanently in view; the right pane hosts everything else.
-    val config = LocalConfiguration.current
-    val wide = config.screenWidthDp >= 840
-    val expanded = config.screenWidthDp >= 600
+    //
+    // Split when the window is wide (≥840dp, tablets) *or* when it is ≥600dp wide and the device
+    // reports a vertical fold (Fold-class inner screen in portrait: ~690dp wide, which never
+    // reaches 840 on its own). The fold case divides the panes exactly at the hinge – about
+    // 345dp per side, almost exactly the cover screen's width – so each pane gets a layout the
+    // app already fits. A flat-open inner screen reports the fold with zero width and book
+    // posture (half-folded) reports a real divider; both carry the same x, so both align.
+    val sizeClass = currentWindowAdaptiveInfo().windowSizeClass.windowWidthSizeClass
+    val expanded = sizeClass != WindowWidthSizeClass.COMPACT    // ≥600dp → side rail
+    val veryWide = sizeClass == WindowWidthSizeClass.EXPANDED    // ≥840dp → split without a fold
+    val fold = rememberWindowFold()                              // physical hinge + posture
+    val foldX = fold.foldXDp
+    val split = veryWide || (expanded && foldX != null)
+    // Destination lambdas may be composed from a graph that was built before a fold, so anything
+    // layout-sensitive read *inside* composable() goes through this State (see composable(TODAY)).
+    val splitState = rememberUpdatedState(split)
 
     Scaffold(
         containerColor = p.bg,
@@ -97,13 +114,26 @@ fun AppScaffold(app: PersonalTerminalApp, settings: Settings, startRoute: String
     ) { padding ->
         Row(Modifier.fillMaxSize().padding(padding)) {
             if (expanded) SideRail(nav, currentTab, settings)
-            if (wide) {
-                Box(Modifier.weight(0.42f).fillMaxHeight()) { TodayScreen(app, nav) }
+            if (split) {
+                if (foldX != null) {
+                    // Divide exactly at the fold: rail + today on the left half, everything else right.
+                    Box(Modifier.width((foldX - RailWidth - 1.dp).coerceAtLeast(0.dp)).fillMaxHeight()) { TodayScreen(app, nav) }
+                } else {
+                    Box(Modifier.weight(0.42f).fillMaxHeight()) { TodayScreen(app, nav) }
+                }
                 Box(Modifier.width(1.dp).fillMaxHeight().background(p.border))
             }
             Box(Modifier.weight(1f).fillMaxHeight()) {
-            NavHost(navController = nav, startDestination = if (wide) Routes.HABITS else Routes.TODAY) {
-                composable(Routes.TODAY) { TodayScreen(app, nav) }
+            // One fixed start destination, both modes. Switching it between Habits and Today when
+            // the layout changes (fold/unfold, rotation) rebuilds the graph and wipes the back
+            // stack – on a Fold that is exactly what killed a half-typed edit when the phone was
+            // folded mid-edit. In split mode the right pane idles on habits via composable(TODAY).
+            NavHost(navController = nav, startDestination = Routes.TODAY) {
+                composable(Routes.TODAY) {
+                    // Split: the left pane owns Today, so the right pane idles on the habit list
+                    // instead of a second copy of Today (read splitState – see note above).
+                    if (splitState.value) HabitsScreen(app, nav) else TodayScreen(app, nav)
+                }
                 composable(Routes.HABITS) { HabitsScreen(app, nav) }
                 composable(
                     Routes.HABIT_EDIT,
@@ -158,12 +188,23 @@ fun AppScaffold(app: PersonalTerminalApp, settings: Settings, startRoute: String
     }
 }
 
+/** Width of the tmux-style side rail – also used to place the divider exactly on the fold. */
+private val RailWidth = 112.dp
+
 /** Vertical tab strip for wide layouts (`[0:today]` … stacked on the left, like a tmux pane list). */
 @Composable
 private fun SideRail(nav: NavHostController, current: Tab?, settings: Settings) {
     val p = Term.palette
     Column(
-        Modifier.fillMaxHeight().width(112.dp).background(p.bgAlt).windowInsetsPadding(WindowInsets.statusBars).padding(vertical = 12.dp, horizontal = 6.dp),
+        Modifier
+            .fillMaxHeight()
+            .width(RailWidth)
+            .background(p.bgAlt)
+            .windowInsetsPadding(WindowInsets.statusBars)
+            // One UI shows a taskbar along the bottom of the inner screen; without this the
+            // "⚙ settings" link at the end of the rail can hide underneath it.
+            .windowInsetsPadding(WindowInsets.navigationBars)
+            .padding(vertical = 12.dp, horizontal = 6.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Text(settings.prompt, color = p.green, style = MaterialTheme.typography.labelSmall, maxLines = 1, modifier = Modifier.padding(horizontal = 4.dp))
@@ -188,6 +229,9 @@ private fun SideRail(nav: NavHostController, current: Tab?, settings: Settings) 
 @Composable
 internal fun StatusLine(nav: NavHostController, current: Tab?, settings: Settings) {
     val p = Term.palette
+    // Fold 5 cover screen (~344dp): five "[n:label]" tabs don't fit on one line in the wider
+    // terminal fonts (VT323 / Space Mono) – below 360dp the indices and brackets go.
+    val narrow = LocalConfiguration.current.screenWidthDp < 360
     Column(Modifier.fillMaxWidth().background(p.bgAlt)) {
         Box(Modifier.fillMaxWidth().height(1.dp).background(p.border))
         Row(
@@ -200,9 +244,14 @@ internal fun StatusLine(nav: NavHostController, current: Tab?, settings: Setting
         ) {
             Tab.entries.forEach { tab ->
                 val selected = tab == current
-                val label = if (selected) "[${tab.index}:${tab.label}]" else " ${tab.index}:${tab.label} "
+                val label = when {
+                    narrow -> tab.label
+                    selected -> "[${tab.index}:${tab.label}]"
+                    else -> " ${tab.index}:${tab.label} "
+                }
                 Text(
                     text = label,
+                    maxLines = 1,
                     color = if (selected) p.green else p.fgDim,
                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                     style = MaterialTheme.typography.labelMedium,

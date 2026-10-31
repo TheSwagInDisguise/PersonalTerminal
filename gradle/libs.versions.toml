@@ -4,7 +4,9 @@ kotlin = "2.0.21"
 ksp = "2.0.21-1.0.28"
 coreKtx = "1.17.0"
 activityCompose = "1.9.3"
-composeBom = "2024.12.01"
+composeBom = "2025.02.00"
+window = "1.3.0"
+adaptive = "1.1.0"
 lifecycle = "2.8.7"
 navigation = "2.8.5"
 room = "2.6.1"
@@ -39,6 +41,8 @@ androidx-compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-toolin
 androidx-compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
 androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3" }
 androidx-compose-material-icons = { group = "androidx.compose.material", name = "material-icons-extended" }
+androidx-window = { group = "androidx.window", name = "window", version.ref = "window" }
+androidx-compose-material3-adaptive = { group = "androidx.compose.material3.adaptive", name = "adaptive", version.ref = "adaptive" }
 androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycle" }
 androidx-lifecycle-runtime-compose = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "lifecycle" }
 androidx-lifecycle-viewmodel-compose = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-compose", version.ref = "lifecycle" }
