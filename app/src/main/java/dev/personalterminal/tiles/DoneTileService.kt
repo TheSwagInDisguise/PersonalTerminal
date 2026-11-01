@@ -46,7 +46,7 @@ class DoneTileService : TileService() {
         val app = application as? PersonalTerminalApp ?: return
         val tile = qsTile ?: return
         val today = AppClock.today()
-        val s = runCatching { app.habits.daySummary(today) }.getOrNull()
+        val s = runCatching { withContext(Dispatchers.IO) { app.habits.daySummary(today) } }.getOrNull()
         val next = s?.active?.firstOrNull { !it.completed }
         val done = s?.done ?: 0
         val total = s?.active?.size ?: 0
