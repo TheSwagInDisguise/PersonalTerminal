@@ -59,6 +59,8 @@ class PhotoPickerState internal constructor(
         internal set
     var showCamera by mutableStateOf(false)
         internal set
+    /** Watch name stamped into the EXIF description of camera captures (3.9); null = no tag. */
+    var tag: String? = null
     var error by mutableStateOf<String?>(null)
         internal set
     /** Name reserved for the next capture/import (stable across recompositions of the camera). */
@@ -196,6 +198,7 @@ fun photoPickerCamera(app: PersonalTerminalApp, state: PhotoPickerState): Boolea
         outputFile = app.watches.photoFile(name),
         onCaptured = { state.photoPath = name; state.version++; state.error = null; state.showCamera = false },
         onCancel = { state.showCamera = false },
+        tag = state.tag,
     )
     return true
 }

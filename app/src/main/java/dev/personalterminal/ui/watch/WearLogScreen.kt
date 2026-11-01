@@ -64,6 +64,7 @@ fun WearLogScreen(app: PersonalTerminalApp, nav: NavHostController, epochDay: Lo
     var selected by remember { mutableLongStateOf(0L) }
     var note by remember { mutableStateOf("") }
     val photo = rememberPhotoPickerState(initialPath = null)
+    photo.tag = watches.firstOrNull { it.id == selected }?.displayName
     if (photoPickerCamera(app, photo)) return
 
     Column(Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {

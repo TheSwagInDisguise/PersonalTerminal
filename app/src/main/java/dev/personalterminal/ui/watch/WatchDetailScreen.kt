@@ -71,6 +71,7 @@ fun WatchDetailScreen(app: PersonalTerminalApp, nav: NavHostController, watchId:
 
     // ---- wrist-shot flow: pick a photo, then attach it to today (or a chosen past wear day) ----
     val shot = rememberPhotoPickerState(initialPath = null)
+    shot.tag = w?.displayName
     var shotDay by remember { mutableStateOf(today) }
     var shotFor by remember { mutableStateOf<WearLog?>(null) } // non-null = replacing the photo of a specific log
     var status by remember { mutableStateOf<String?>(null) }

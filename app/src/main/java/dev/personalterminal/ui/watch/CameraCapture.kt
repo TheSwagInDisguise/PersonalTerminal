@@ -52,7 +52,7 @@ import java.util.concurrent.Executors
  * Full-screen in-app camera (CameraX). Saves a downscaled JPEG to [outputFile] and calls [onCaptured].
  */
 @Composable
-fun CameraCapture(outputFile: File, onCaptured: (File) -> Unit, onCancel: () -> Unit) {
+fun CameraCapture(outputFile: File, onCaptured: (File) -> Unit, onCancel: () -> Unit, tag: String? = null) {
     val p = Term.palette
     val ctx = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -118,6 +118,7 @@ fun CameraCapture(outputFile: File, onCaptured: (File) -> Unit, onCancel: () -> 
                                         val stamp = buildString {
                                             append("personal-terminal wrist shot")
                                             append(" v").append(dev.personalterminal.BuildConfig.VERSION_NAME)
+                                            if (!tag.isNullOrBlank()) append(" · ").append(tag)
                                             append(" · ").append(java.time.LocalDate.now())
                                         }
                                         ExifInterface(outputFile.absolutePath).setAttribute(ExifInterface.TAG_IMAGE_DESCRIPTION, stamp)

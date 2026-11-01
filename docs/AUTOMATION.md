@@ -22,7 +22,11 @@ wish [brand model [target]] wishlist: bare lists it, with words adds one · `wis
 save <amount> <watch>     add to a wishlist fund (`save -50 …` withdraws) · watch buy <watch> [paid]  → owned
 uptime                    power-reserve status of the mechanical watches (stopped / low / running) + wind-and-set steps
 watch challenges          rotation challenges (every watch this month, no repeats this week, dust off, balanced quarter)
+watch report | insure     insurance-style collection PDF (reference, purchase, value, services, docs, totals)
+watch sheet | contact     A6 contact-sheet PNG of the collection's shots (150 dpi grid, shareable)
 shield <habit>            repair the latest gap        habit add [template] new habit / from template
+challenge <habit> <days> [stake]  bounded run: bar on Today, certificate on settle (×10 win / ×5 miss XP)
+challenge <habit> off     cancel an unarmed challenge  · status prints the window when it is open
 yesterday <habit>         late-log the previous scheduled day (repair window: before 12:00, no shield spent)
 pause <habit> [until yyyy-mm-dd | 2w | 10d | 1m]      hide a habit until a date (streak bridged)
 pause                     list paused habits           resume <habit>       bring it back early
