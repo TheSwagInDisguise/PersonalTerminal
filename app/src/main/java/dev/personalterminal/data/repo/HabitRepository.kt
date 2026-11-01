@@ -134,10 +134,12 @@ class HabitRepository(private val db: AppDatabase) {
     suspend fun saveRoutine(routine: Routine): Long {
         val id = if (routine.id == 0L) routineDao.insert(routine.copy(position = routineDao.getAll().size))
         else { routineDao.update(routine); routine.id }
-        bump(); return id
+        bump()
+        routineDao.getById(id)?.let { journal?.upsert("routines", it.id, it) }
+        return id
     }
 
-    suspend fun deleteRoutine(routine: Routine) { routineDao.delete(routine); bump() }
+    suspend fun deleteRoutine(routine: Routine) { journal?.delete("routines", routine.id); routineDao.delete(routine); bump() }
 
     suspend fun moveRoutine(routine: Routine, delta: Int) {
         val all = routineDao.getAll().toMutableList()
@@ -145,7 +147,7 @@ class HabitRepository(private val db: AppDatabase) {
         val target = (idx + delta).coerceIn(0, all.lastIndex)
         if (idx < 0 || idx == target) return
         val item = all.removeAt(idx); all.add(target, item)
-        all.forEachIndexed { i, r -> if (r.position != i) routineDao.update(r.copy(position = i)) }
+        all.forEachIndexed { i, r -> if (r.position != i) { val u = r.copy(position = i); routineDao.update(u); journal?.upsert("routines", u.id, u) } }
         bump()
     }
 
@@ -156,12 +158,19 @@ class HabitRepository(private val db: AppDatabase) {
         val habit = if (habit.type == HabitType.CHECKLIST) habit.copy(target = habit.checklistItems.size.coerceAtLeast(1)) else habit
         val id = if (habit.id == 0L) habitDao.insert(habit.copy(position = habitDao.nextPosition()))
         else { habitDao.update(habit); habit.id }
-        bump(); return id
+        bump()
+        journalHabit(id)
+        return id
     }
 
-    suspend fun deleteHabit(habit: Habit) { habitDao.delete(habit); bump() }
+    suspend fun deleteHabit(habit: Habit) {
+        // 7.3 sync: the habit and its log rows leave together
+        journal?.delete("habits", habit.id)
+        logDao.getForHabit(habit.id).forEach { journal?.deleteRow("habit_logs", "${habit.id}:${it.day}") }
+        habitDao.delete(habit); bump()
+    }
 
-    suspend fun setArchived(habit: Habit, archived: Boolean) { habitDao.update(habit.copy(archived = archived)); bump() }
+    suspend fun setArchived(habit: Habit, archived: Boolean) { habitDao.update(habit.copy(archived = archived)); journalHabit(habit.id); bump() }
 
     /**
      * Pause [habit] until [until] (exclusive – the habit is back on that day); null resumes it now.
@@ -172,6 +181,7 @@ class HabitRepository(private val db: AppDatabase) {
         val today = AppClock.today().toEpochDay()
         val epoch = until?.toEpochDay() ?: 0L
         habitDao.update(if (epoch > today) habit.copy(pausedFrom = today, pausedUntil = epoch) else habit.copy(pausedFrom = 0L, pausedUntil = 0L))
+        journalHabit(habit.id)
         bump()
     }
 
@@ -182,6 +192,7 @@ class HabitRepository(private val db: AppDatabase) {
         if (idx < 0 || idx == target) return
         val item = siblings.removeAt(idx); siblings.add(target, item)
         siblings.forEachIndexed { i, h -> if (h.position != i) habitDao.update(h.copy(position = i)) }
+        siblings.forEach { journalHabit(it.id) }
         bump()
     }
 
@@ -287,6 +298,8 @@ class HabitRepository(private val db: AppDatabase) {
         val updated = existing.copy(note = note?.trim() ?: existing.note, mood = mood?.coerceIn(0, 5) ?: existing.mood, updatedAt = System.currentTimeMillis())
         if (updated.value == 0 && !updated.completed && !updated.skipped && updated.note.isBlank() && updated.mood == 0) logDao.delete(habitId, epoch)
         else logDao.upsert(updated)
+        logDao.get(habitId, epoch)?.let { journal?.upsert("habit_logs", "${habitId}:$epoch", it) }
+            ?: journal?.deleteRow("habit_logs", "${habitId}:$epoch")
         bump()
     }
 
@@ -325,7 +338,9 @@ class HabitRepository(private val db: AppDatabase) {
             while (d.isBefore(today)) {
                 if (Schedule.isDue(h, d) && logs[d.toEpochDay()] == null) {
                     val epoch = d.toEpochDay()
-                    logDao.upsert(HabitLog(h.id, epoch, 0, true))
+                    val l = HabitLog(h.id, epoch, 0, true)
+                    logDao.upsert(l)
+                    journal?.upsert("habit_logs", "${h.id}:$epoch", l)
                     awardOnce(h.id, epoch, Progression.REASON_COMPLETE, Progression.XP_COMPLETE)
                     changed = true
                 }
@@ -342,11 +357,13 @@ class HabitRepository(private val db: AppDatabase) {
 
     suspend fun saveSkipRule(rule: SkipRule, today: LocalDate = AppClock.today()): Long {
         val id = ruleDao.insert(rule)
+        ruleDao.getById(id)?.let { journal?.upsert("skip_rules", it.id, it) }
         applySkipRules(today)
         return id
     }
 
     suspend fun deleteSkipRule(id: Long, today: LocalDate = AppClock.today()) {
+        journal?.delete("skip_rules", id)
         ruleDao.delete(id)
         applySkipRules(today)
     }
@@ -355,6 +372,7 @@ class HabitRepository(private val db: AppDatabase) {
     suspend fun endSkipRule(id: Long, today: LocalDate = AppClock.today()) {
         val r = ruleDao.getById(id) ?: return
         ruleDao.insert(r.copy(toDay = today.toEpochDay(), enabled = true))
+        journal?.upsert("skip_rules", id, r.copy(toDay = today.toEpochDay(), enabled = true))
         applySkipRules(today)
     }
 
@@ -378,8 +396,14 @@ class HabitRepository(private val db: AppDatabase) {
             val rule = rules.firstOrNull { it.id == log.ruleId }
             val still = rule != null && SkipRules.matchesDay(rule, LocalDate.ofEpochDay(log.day)) && SkipRules.appliesTo(rule, habit)
             if (!still) {
-                if (log.note.isBlank() && log.mood == 0) logDao.delete(log.habitId, log.day)
-                else logDao.upsert(log.copy(skipped = false, skipReason = "", ruleId = 0))
+                if (log.note.isBlank() && log.mood == 0) {
+                    logDao.delete(log.habitId, log.day)
+                    journal?.deleteRow("habit_logs", "${log.habitId}:${log.day}")
+                } else {
+                    val u = log.copy(skipped = false, skipReason = "", ruleId = 0)
+                    logDao.upsert(u)
+                    journal?.upsert("habit_logs", "${log.habitId}:${log.day}", u)
+                }
                 changed = true
             }
         }
@@ -394,7 +418,9 @@ class HabitRepository(private val db: AppDatabase) {
                     val rule = SkipRules.covering(rules, habit, date)
                     val existing = logs[e]
                     if (rule != null && existing == null && Schedule.isDue(habit, date)) {
-                        logDao.upsert(HabitLog(habit.id, e, 0, false, skipped = true, skipReason = rule.name, ruleId = rule.id))
+                        val l = HabitLog(habit.id, e, 0, false, skipped = true, skipReason = rule.name, ruleId = rule.id)
+                        logDao.upsert(l)
+                        journal?.upsert("habit_logs", "${habit.id}:$e", l)
                         changed = true
                     }
                     e++
@@ -410,11 +436,13 @@ class HabitRepository(private val db: AppDatabase) {
     suspend fun recordSession(habitId: Long, startedAt: Long, endedAt: Long, minutes: Int, kind: String, completed: Boolean) {
         if (minutes <= 0) return
         val day = java.time.Instant.ofEpochMilli(startedAt).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
-        sessionDao.insert(FocusSession(habitId = habitId, day = day.toEpochDay(), startedAt = startedAt, endedAt = endedAt, minutes = minutes, kind = kind, completed = completed))
+        val session = FocusSession(habitId = habitId, day = day.toEpochDay(), startedAt = startedAt, endedAt = endedAt, minutes = minutes, kind = kind, completed = completed)
+        val sid = sessionDao.insert(session)
+        journal?.upsert("focus_sessions", sid, session.copy(id = sid))
         if (habitId != 0L) addValue(habitId, minutes, day) else bump()
     }
 
-    suspend fun deleteSession(session: FocusSession) { sessionDao.delete(session); bump() }
+    suspend fun deleteSession(session: FocusSession) { journal?.delete("focus_sessions", session.id); sessionDao.delete(session); bump() }
 
     /**
      * Called by the app after an anchor habit is completed so a stacked follower can be nudged
@@ -423,30 +451,45 @@ class HabitRepository(private val db: AppDatabase) {
     var onAnchorCompleted: (suspend (anchor: Habit, date: LocalDate) -> Unit)? = null
 
     private suspend fun afterChange(habit: Habit, epoch: Long, wasCompleted: Boolean, isCompleted: Boolean, date: LocalDate, wasPartial: Boolean = false, isPartial: Boolean = false) {
+        // 7.3 sync: the log row as it now stands (a removal journals as a delete)
+        logDao.get(habit.id, epoch)?.let { journal?.upsert("habit_logs", "${habit.id}:$epoch", it) }
+            ?: journal?.deleteRow("habit_logs", "${habit.id}:$epoch")
         if (!wasCompleted && isCompleted) {
-            xpDao.deleteFor(habit.id, epoch, Progression.REASON_MINIMUM)
+            xpDeleteFor(habit.id, epoch, Progression.REASON_MINIMUM)
             awardOnce(habit.id, epoch, Progression.REASON_COMPLETE, Progression.XP_COMPLETE)
             val streak = Streaks.compute(habit, logDao.getForHabit(habit.id), shieldDao.getForHabit(habit.id), date)
             if (streak.current > 0 && streak.current % 7 == 0) {
                 awardOnce(habit.id, epoch, Progression.REASON_STREAK, Progression.XP_STREAK_WEEK)
             }
         } else if (wasCompleted && !isCompleted) {
-            xpDao.deleteFor(habit.id, epoch, Progression.REASON_COMPLETE)
-            xpDao.deleteFor(habit.id, epoch, Progression.REASON_STREAK)
+            xpDeleteFor(habit.id, epoch, Progression.REASON_COMPLETE)
+            xpDeleteFor(habit.id, epoch, Progression.REASON_STREAK)
         }
         // minimum version: half the XP, kept only while the day is partial (a full completion replaces it)
         if (!isCompleted && isPartial && !wasPartial) awardOnce(habit.id, epoch, Progression.REASON_MINIMUM, Progression.XP_MINIMUM)
-        else if (!isPartial && wasPartial && !isCompleted) xpDao.deleteFor(habit.id, epoch, Progression.REASON_MINIMUM)
+        else if (!isPartial && wasPartial && !isCompleted) xpDeleteFor(habit.id, epoch, Progression.REASON_MINIMUM)
         // Perfect-day bonus (habitId 0 = day-level event)
         val summary = daySummary(date)
         val hasPerfect = xpDao.countFor(0, epoch, Progression.REASON_PERFECT_DAY) > 0
         if (summary.isPerfect && !hasPerfect) {
-            xpDao.insert(XpEvent(day = epoch, amount = Progression.XP_PERFECT_DAY, reason = Progression.REASON_PERFECT_DAY))
+            val id = xpDao.insert(XpEvent(day = epoch, amount = Progression.XP_PERFECT_DAY, reason = Progression.REASON_PERFECT_DAY))
+            journal?.upsert("xp_events", id, XpEvent(id = id, day = epoch, amount = Progression.XP_PERFECT_DAY, reason = Progression.REASON_PERFECT_DAY))
         } else if (!summary.isPerfect && hasPerfect) {
-            xpDao.deleteFor(0, epoch, Progression.REASON_PERFECT_DAY)
+            xpDeleteFor(0, epoch, Progression.REASON_PERFECT_DAY)
         }
         bump()
         if (!wasCompleted && isCompleted && date == AppClock.today()) onAnchorCompleted?.let { hook -> runCatching { hook(habit, date) } }
+    }
+
+    /** 7.3 sync: journal a habit row as it stands now (read-back after the write). */
+    private suspend fun journalHabit(id: Long) {
+        habitDao.getById(id)?.let { journal?.upsert("habits", it.id, it) }
+    }
+
+    /** 7.3 sync: journal the ledger rows about to vanish, then remove them. */
+    private suspend fun xpDeleteFor(habitId: Long, day: Long, reason: String) {
+        xpDao.find(habitId, day, reason).forEach { journal?.delete("xp_events", it.id) }
+        xpDao.deleteFor(habitId, day, reason)
     }
 
     // ------------------------------------------------------------------ minimum / ramp / stacking
@@ -455,7 +498,9 @@ class HabitRepository(private val db: AppDatabase) {
     suspend fun setMinimum(habitId: Long, minimum: Int) {
         val h = habitDao.getById(habitId) ?: return
         if (h.type == HabitType.CHECKBOX || h.type == HabitType.CHECKLIST) return
-        habitDao.update(h.copy(minTarget = minimum.coerceIn(0, (h.target - 1).coerceAtLeast(0)))); bump()
+        habitDao.update(h.copy(minTarget = minimum.coerceIn(0, (h.target - 1).coerceAtLeast(0))))
+        journalHabit(habitId)
+        bump()
     }
 
     /** `ramp read 30 8` – grow the target to [to] over [weeks] weeks starting today; weeks = 0 clears. */
@@ -464,6 +509,7 @@ class HabitRepository(private val db: AppDatabase) {
         if (h.type == HabitType.CHECKBOX || h.type == HabitType.CHECKLIST) return
         val cleared = weeks <= 0 || to <= 0 || to == h.target
         habitDao.update(if (cleared) h.copy(rampTo = 0, rampWeeks = 0, rampStartDay = 0L) else h.copy(rampTo = to, rampWeeks = weeks.coerceIn(1, 52), rampStartDay = from.toEpochDay()))
+        journalHabit(habitId)
         bump()
     }
 
@@ -477,18 +523,23 @@ class HabitRepository(private val db: AppDatabase) {
             var hops = 0
             while (cur.anchorId > 0L && hops++ < 16) { if (cur.anchorId == habitId) return false; cur = all[cur.anchorId] ?: break }
         }
-        habitDao.update(h.copy(anchorId = anchorId.coerceAtLeast(0L), anchorRemind = remind && anchorId > 0L)); bump()
+        habitDao.update(h.copy(anchorId = anchorId.coerceAtLeast(0L), anchorRemind = remind && anchorId > 0L))
+        journalHabit(habitId)
+        bump()
         return true
     }
 
     suspend fun setArea(habitId: Long, area: String) {
         val h = habitDao.getById(habitId) ?: return
-        habitDao.update(h.copy(area = area)); bump()
+        habitDao.update(h.copy(area = area))
+        journalHabit(habitId)
+        bump()
     }
 
     private suspend fun awardOnce(habitId: Long, day: Long, reason: String, amount: Int) {
         if (xpDao.countFor(habitId, day, reason) == 0) {
-            xpDao.insert(XpEvent(day = day, amount = amount, reason = reason, habitId = habitId))
+            val id = xpDao.insert(XpEvent(day = day, amount = amount, reason = reason, habitId = habitId))
+            journal?.upsert("xp_events", id, XpEvent(id = id, day = day, amount = amount, reason = reason, habitId = habitId))
         }
     }
 
@@ -520,14 +571,13 @@ class HabitRepository(private val db: AppDatabase) {
             else -> -(h.chStake * 5)
         }
         if (xp != 0) {
-            xpDao.insert(
-                XpEvent(
-                    day = today.toEpochDay(), amount = xp,
-                    reason = if (success) "challenge won" else "challenge missed", habitId = h.id,
-                )
-            )
+            val reason = if (success) "challenge won" else "challenge missed"
+            val xid = xpDao.insert(XpEvent(day = today.toEpochDay(), amount = xp, reason = reason, habitId = h.id))
+            journal?.upsert("xp_events", xid, XpEvent(id = xid, day = today.toEpochDay(), amount = xp, reason = reason, habitId = h.id))
         }
-        habitDao.update(h.copy(chResolved = true)); bump()
+        habitDao.update(h.copy(chResolved = true))
+        journalHabit(h.id)
+        bump()
         return dev.personalterminal.domain.Challenges.Settlement(success, xp, done, scheduled)
     }
 
@@ -561,7 +611,9 @@ class HabitRepository(private val db: AppDatabase) {
     suspend fun useShield(habitId: Long, day: LocalDate): Boolean {
         val summary = daySummary(AppClock.today())
         if (summary.shieldsAvailable <= 0) return false
-        val inserted = shieldDao.insert(ShieldUse(habitId, day.toEpochDay()))
+        val su = ShieldUse(habitId, day.toEpochDay())
+        val inserted = shieldDao.insert(su)
+        if (inserted != -1L) journal?.upsert("shield_uses", "${habitId}:${day.toEpochDay()}", su)
         bump()
         return inserted != -1L
     }
@@ -590,11 +642,17 @@ class HabitRepository(private val db: AppDatabase) {
             note = note ?: existing?.note ?: "",
             updatedAt = System.currentTimeMillis(),
         )
-        if (merged.bedMinutes == null && merged.wakeMinutes == null) sleepDao.delete(epoch) else sleepDao.upsert(merged)
+        if (merged.bedMinutes == null && merged.wakeMinutes == null) {
+            sleepDao.delete(epoch)
+            journal?.deleteRow("sleep_logs", epoch.toString())
+        } else {
+            sleepDao.upsert(merged)
+            journal?.upsert("sleep_logs", epoch.toString(), merged)
+        }
         bump()
     }
 
-    suspend fun clearSleep(wakeDay: LocalDate) { sleepDao.delete(wakeDay.toEpochDay()); bump() }
+    suspend fun clearSleep(wakeDay: LocalDate) { journal?.deleteRow("sleep_logs", wakeDay.toEpochDay().toString()); sleepDao.delete(wakeDay.toEpochDay()); bump() }
 
     // ------------------------------------------------------------------ misc
 

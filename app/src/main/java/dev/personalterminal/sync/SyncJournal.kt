@@ -58,13 +58,19 @@ class SyncJournal(private val db: AppDatabase, private val prefs: UserPrefs) {
         }
     }
 
-    suspend inline fun <reified T : Any> upsert(entity: String, rowId: Long, row: T) {
-        emit(entity, rowId.toString(), "u", json.encodeToString(row))
+    suspend inline fun <reified T : Any> upsert(entity: String, rowId: Long, row: T): Unit =
+        upsert(entity, rowId.toString(), row)
+
+    /** Composite keys (`habit_logs` = `habitId:day`) ride as text row ids. */
+    suspend inline fun <reified T : Any> upsert(entity: String, rowId: String, row: T) {
+        emit(entity, rowId, "u", json.encodeToString(row))
     }
 
     /** Settings keys are strings and ride the same journal as `prefs:<key>` rows. */
     suspend fun upsertKey(key: String, value: String): Unit =
         emit("prefs", "prefs:$key", "u", json.encodeToString(SettingsValue(key, value)))
 
-    suspend fun delete(entity: String, rowId: Long): Unit = emit(entity, rowId.toString(), "d", "")
+    suspend fun delete(entity: String, rowId: Long): Unit = deleteRow(entity, rowId.toString())
+
+    suspend fun deleteRow(entity: String, rowId: String): Unit = emit(entity, rowId, "d", "")
 }

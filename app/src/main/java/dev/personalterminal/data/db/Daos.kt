@@ -279,6 +279,9 @@ interface XpDao {
     @Query("SELECT COUNT(*) FROM xp_events WHERE habitId = :habitId AND day = :day AND reason = :reason")
     suspend fun countFor(habitId: Long, day: Long, reason: String): Int
 
+    @Query("SELECT * FROM xp_events WHERE habitId = :habitId AND day = :day AND reason = :reason")
+    suspend fun find(habitId: Long, day: Long, reason: String): List<XpEvent>
+
     @Insert
     suspend fun insert(event: XpEvent): Long
 
