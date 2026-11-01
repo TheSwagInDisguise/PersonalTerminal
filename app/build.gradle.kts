@@ -177,6 +177,15 @@ ksp {
 // for local unit tests). Release builds never see them.
 android.sourceSets.getByName("debug").assets.srcDir("$projectDir/schemas")
 
+// The migration tests read those assets, so KSP's export of the newest Room schema must run
+// *before* the asset merger — otherwise a fresh version's schema JSON is missing at test time.
+androidComponents.onVariants { variant ->
+    val capital = variant.name.replaceFirstChar { it.uppercase() }
+    tasks.matching { it.name == "package${capital}Assets" }.configureEach {
+        dependsOn("ksp${capital}Kotlin")
+    }
+}
+
 /** Writes the resolved version to app/build/version.properties (consumed by the release workflow). */
 tasks.register("printVersion") {
     val name = appVersionName
