@@ -472,6 +472,54 @@ object Commands {
             "man", "achievements" -> ok("achievements", Routes.ACHIEVEMENTS)
             "insights", "correlations" -> ok("insights", Routes.INSIGHTS)
             "garden", "plant", "grow" -> ok("garden", Routes.GARDEN)
+            "challenge", "chal" -> {
+                // `challenge <habit> 30 [stake]` · `challenge <habit>` status/certificate · `challenge <habit> off`
+                val today = date
+                if (rest.isBlank()) {
+                    val active = app.habits.allHabits().filter { dev.personalterminal.domain.Challenges.isActive(it, today) }
+                    if (active.isEmpty()) err("no active challenges · `challenge <habit> 30 [stake]` starts one")
+                    else ok(active.joinToString("\n") { it.name + "  " + (dev.personalterminal.domain.Challenges.label(it, today) ?: "") + "  " + dev.personalterminal.domain.Challenges.progressBar(it, today) })
+                } else {
+                    val words = rest.trim().split(Regex("\\s+"))
+                    val off = words.lastOrNull()?.lowercase() in setOf("off", "clear", "rm", "end")
+                    val nums = if (off) emptyList() else words.takeLastWhile { it.toIntOrNull() != null }
+                    val ref = words.dropLast(if (off) 1 else nums.size).joinToString(" ")
+                    habit(app, ref)?.let { h ->
+                        when {
+                            off -> {
+                                app.habits.saveHabit(h.copy(chStart = 0L, chEnd = 0L, chStake = 0, chResolved = false))
+                                ok("${h.name}: challenge cleared")
+                            }
+                            dev.personalterminal.domain.Challenges.isActive(h, today) -> ok(dev.personalterminal.domain.Challenges.status(h, today))
+                            nums.isEmpty() && dev.personalterminal.domain.Challenges.hasChallenge(h) && h.chResolved -> ok("${h.name}: challenge closed · `status` shows the xp ledger")
+                            nums.isEmpty() && dev.personalterminal.domain.Challenges.isSettling(h, today) -> {
+                                val s = app.habits.settleChallenge(h)
+                                if (s == null) err("${h.name}: window still open")
+                                else {
+                                    val fresh = app.habits.allHabits().first { it.id == h.id }
+                                    ok(dev.personalterminal.domain.Challenges.certificate(fresh, s, java.time.LocalDate.ofEpochDay(h.chStart), java.time.LocalDate.ofEpochDay(h.chEnd)))
+                                }
+                            }
+                            nums.isEmpty() -> ok("usage: challenge <habit> <days> [stake]  ·  challenge <habit> off")
+                            nums.size > 2 -> err("usage: challenge <habit> <days> [stake]")
+                            else -> {
+                                val days = nums[0]
+                                val stake = nums.getOrNull(1) ?: 0
+                                if (days < 2 || days > 366) err("challenge length: 2–366 days")
+                                else if (stake < 0 || stake > 50) err("stake: 0–50")
+                                else {
+                                    app.habits.saveHabit(
+                                        h.copy(chStart = today.toEpochDay(), chEnd = today.toEpochDay() + days - 1, chStake = stake, chResolved = false)
+                                    )
+                                    ok("challenge started: ${h.name} · $days days" +
+                                        (if (stake > 0) " · stake $stake (+${stake * 10} / -${stake * 5} xp)" else "") +
+                                        "\nfrom $today to ${today.plusDays(days - 1L)}")
+                                }
+                            }
+                        }
+                    } ?: noHabit(ref)
+                }
+            }
             "saver" -> {
                 val id = rest.trim().lowercase().substringBefore(' ')
                 when {
@@ -642,6 +690,7 @@ object Commands {
         |area <habit> body     sort strength|routine
         |review [year] · achievements · insights
         |garden · saver matrix|off · amb rain|keys
+        |challenge <habit> 30 [3]  challenge off
         |theme <name> · font <name> · icon <name>
     """.trimMargin()
 }

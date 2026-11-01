@@ -63,6 +63,7 @@ open class PersonalTerminalApp : Application() {
             DriveSync.schedule(this@PersonalTerminalApp, s.autoBackup && s.driveAccountEmail.isNotBlank(), s.backupIntervalHours)
             // Close out past days for avoid-habits (they earn XP for every clean day) and re-arm reminders.
             runCatching { habits.settleNegativeHabits() }
+            runCatching { habits.settleChallengesDue() }
             runCatching { habits.applySkipRules() }
             runCatching { dev.personalterminal.reminders.ReminderScheduler.reschedule(this@PersonalTerminalApp) }
             runCatching { dev.personalterminal.reminders.WatchServiceReminder.schedule(this@PersonalTerminalApp) }

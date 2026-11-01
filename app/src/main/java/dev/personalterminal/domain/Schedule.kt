@@ -19,7 +19,21 @@ object Schedule {
         ScheduleType.DAILY -> true
         ScheduleType.WEEKLY -> true
         ScheduleType.SPECIFIC_DAYS -> isDayEnabled(habit.daysMask, date.dayOfWeek)
+        // Every other week (anchored on the habit's creation week) on the masked weekdays;
+        // mask 127 = every day of the "on" week.
+        ScheduleType.BIWEEKLY -> isDayEnabled(habit.daysMask, date.dayOfWeek) && weekParity(habit) == weekIndex(date) % 2
+        ScheduleType.MONTHLY -> habit.monthDay > 0 &&
+            date.dayOfMonth == habit.monthDay.coerceAtMost(date.lengthOfMonth().toLong()).toInt()
     }
+
+    /** Parity (0/1) of the habit's creation week — the anchor for the biweekly rhythm. */
+    fun weekParity(habit: Habit): Long {
+        val created = java.time.Instant.ofEpochMilli(habit.createdAt).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+        return weekIndex(created) % 2
+    }
+
+    /** Weeks since the epoch for [date] (parity source for biweekly schedules). */
+    private fun weekIndex(date: LocalDate): Long = weekStart(date).toEpochDay() / 7
 
     /** "paused → 01 oct" while the habit is paused, else null. */
     fun pauseLabel(habit: Habit, today: LocalDate): String? =
@@ -39,6 +53,19 @@ object Schedule {
     fun describe(habit: Habit): String = when (habit.schedule) {
         ScheduleType.DAILY -> "daily"
         ScheduleType.WEEKLY -> "${habit.timesPerWeek}x/week"
+        ScheduleType.BIWEEKLY -> {
+            val days = DayOfWeek.entries.filter { isDayEnabled(habit.daysMask, it) }
+            when {
+                days.isEmpty() -> "never"
+                days.size == 7 -> "every 2 weeks"
+                else -> "every 2w · " + days.joinToString(",") { it.name.take(3).lowercase() }
+            }
+        }
+        ScheduleType.MONTHLY -> when {
+            habit.monthDay <= 0 -> "never"
+            habit.monthDay > 28 -> "monthly · day ${habit.monthDay} (last day in short months)"
+            else -> "monthly · ${habit.monthDay}${ordinal(habit.monthDay)}"
+        }
         ScheduleType.SPECIFIC_DAYS -> {
             val days = DayOfWeek.entries.filter { isDayEnabled(habit.daysMask, it) }
             when {
@@ -49,6 +76,11 @@ object Schedule {
                 else -> days.joinToString(",") { it.name.take(3).lowercase() }
             }
         }
+    }
+
+    private fun ordinal(n: Int): String = when (n % 100) {
+        11, 12, 13 -> "th"
+        else -> when (n % 10) { 1 -> "st"; 2 -> "nd"; 3 -> "rd"; else -> "th" }
     }
 
     /** Monday of the week containing [date]. */

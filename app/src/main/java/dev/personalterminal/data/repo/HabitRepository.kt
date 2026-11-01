@@ -489,6 +489,53 @@ class HabitRepository(private val db: AppDatabase) {
         }
     }
 
+    // ------------------------------------------------------------------ challenges (0.4.0)
+
+    /**
+     * Settles an expired challenge exactly once: counts scheduled days inside the window that were
+     * completed (half the scheduled days wins), writes the stake to the XP ledger and marks the
+     * habit resolved. Returns null when the window is still open or already settled.
+     */
+    suspend fun settleChallenge(h: Habit): dev.personalterminal.domain.Challenges.Settlement? {
+        val today = AppClock.today()
+        if (h.chStart <= 0L || h.chEnd <= 0L || h.chResolved || h.chEnd >= today.toEpochDay()) return null
+        var scheduled = 0
+        var done = 0
+        var d = java.time.LocalDate.ofEpochDay(h.chStart)
+        val last = minOf(java.time.LocalDate.ofEpochDay(h.chEnd), today.minusDays(1))
+        while (!d.isAfter(last)) {
+            if (dev.personalterminal.domain.Schedule.isDue(h, d)) {
+                scheduled++
+                if (daySummary(d).due.firstOrNull { it.habit.id == h.id }?.completed == true) done++
+            }
+            d = d.plusDays(1)
+        }
+        val success = scheduled > 0 && done >= dev.personalterminal.domain.Challenges.threshold(scheduled)
+        val xp = when {
+            h.chStake <= 0 -> 0
+            success -> h.chStake * 10
+            else -> -(h.chStake * 5)
+        }
+        if (xp != 0) {
+            xpDao.insert(
+                XpEvent(
+                    day = today.toEpochDay(), amount = xp,
+                    reason = if (success) "challenge won" else "challenge missed", habitId = h.id,
+                )
+            )
+        }
+        habitDao.update(h.copy(chResolved = true)); bump()
+        return dev.personalterminal.domain.Challenges.Settlement(success, xp, done, scheduled)
+    }
+
+    /** Launch-time sweep: settle every challenge whose window closed (idempotent). */
+    suspend fun settleChallengesDue() {
+        val today = AppClock.today()
+        allHabits()
+            .filter { it.chEnd > 0L && !it.chResolved && it.chEnd < today.toEpochDay() }
+            .forEach { settleChallenge(it) }
+    }
+
     /**
      * Repair window: marks [day] (the previous scheduled day) as done after the fact. Same effect as
      * ticking it on the day – value = target, XP awarded once, streak restored – with a note so the

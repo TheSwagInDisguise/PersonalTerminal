@@ -486,3 +486,42 @@ interface StrapSwapDao {
     @Query("DELETE FROM strap_swaps")
     suspend fun deleteAll()
 }
+
+@Dao
+interface WatchPhotoDao {
+    @Query("SELECT * FROM watch_photos WHERE watchId = :watchId ORDER BY createdAt DESC")
+    fun observeForWatch(watchId: Long): Flow<List<WatchPhoto>>
+
+    @Query("SELECT * FROM watch_photos ORDER BY createdAt DESC")
+    fun observeAll(): Flow<List<WatchPhoto>>
+
+    @Query("SELECT * FROM watch_photos WHERE watchId = :watchId ORDER BY createdAt DESC")
+    suspend fun getForWatch(watchId: Long): List<WatchPhoto>
+
+    @Insert
+    suspend fun insert(photo: WatchPhoto): Long
+
+    @Delete
+    suspend fun delete(photo: WatchPhoto)
+
+    @Query("DELETE FROM watch_photos")
+    suspend fun deleteAll()
+}
+
+@Dao
+interface WatchDocumentDao {
+    @Query("SELECT * FROM watch_documents WHERE watchId = :watchId ORDER BY createdAt DESC")
+    fun observeForWatch(watchId: Long): Flow<List<WatchDocument>>
+
+    @Query("SELECT * FROM watch_documents WHERE watchId = :watchId ORDER BY createdAt DESC")
+    suspend fun getForWatch(watchId: Long): List<WatchDocument>
+
+    @Insert
+    suspend fun insert(doc: WatchDocument): Long
+
+    @Delete
+    suspend fun delete(doc: WatchDocument)
+
+    @Query("DELETE FROM watch_documents")
+    suspend fun deleteAll()
+}

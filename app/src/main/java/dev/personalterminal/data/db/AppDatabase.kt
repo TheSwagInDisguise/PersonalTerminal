@@ -21,8 +21,9 @@ class Converters {
     entities = [
         Routine::class, Habit::class, HabitLog::class, ShieldUse::class, Watch::class, WearLog::class, XpEvent::class,
         FocusSession::class, WatchService::class, AccuracyReading::class, Strap::class, SkipRule::class, SleepLog::class, StrapSwap::class,
+        WatchPhoto::class, WatchDocument::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -41,6 +42,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun skipRuleDao(): SkipRuleDao
     abstract fun sleepDao(): SleepDao
     abstract fun strapSwapDao(): StrapSwapDao
+    abstract fun watchPhotoDao(): WatchPhotoDao
+    abstract fun watchDocumentDao(): WatchDocumentDao
 
     /** Wipes every table inside one transaction (used when restoring a backup). */
     suspend fun clearAllData() = withTransaction {
@@ -58,6 +61,8 @@ abstract class AppDatabase : RoomDatabase() {
         habitDao().deleteAll()
         routineDao().deleteAll()
         xpDao().deleteAll()
+        watchPhotoDao().deleteAll()
+        watchDocumentDao().deleteAll()
     }
 
     companion object {
@@ -67,10 +72,31 @@ abstract class AppDatabase : RoomDatabase() {
 
         fun get(context: Context): AppDatabase = INSTANCE ?: synchronized(this) {
             INSTANCE ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, NAME)
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build()
                 .also { INSTANCE = it }
+        }
+
+        /** 0.3.8 → 0.4.0: challenges (bounded window + stake), monthly / biweekly schedules, watch photos + documents. Additive only. */
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE habits ADD COLUMN chStart INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE habits ADD COLUMN chEnd INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE habits ADD COLUMN chStake INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE habits ADD COLUMN chResolved INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE habits ADD COLUMN monthDay INTEGER NOT NULL DEFAULT 0")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS watch_photos (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "watchId INTEGER NOT NULL, path TEXT NOT NULL, kind TEXT NOT NULL, createdAt INTEGER NOT NULL)",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_watch_photos_watchId ON watch_photos (watchId)")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS watch_documents (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "watchId INTEGER NOT NULL, path TEXT NOT NULL, kind TEXT NOT NULL, label TEXT NOT NULL, createdAt INTEGER NOT NULL)",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_watch_documents_watchId ON watch_documents (watchId)")
+            }
         }
 
         /** 0.3.5 → 0.3.6: watch lifecycle (status / sale), wishlist fields, power reserve + complications. Additive only. */

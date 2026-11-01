@@ -27,7 +27,7 @@ enum class TimeOfDay(val label: String, val glyph: String) {
 }
 
 /** Which days a habit is scheduled for. */
-enum class ScheduleType { DAILY, WEEKLY, SPECIFIC_DAYS }
+enum class ScheduleType { DAILY, WEEKLY, SPECIFIC_DAYS, BIWEEKLY, MONTHLY }
 
 /**
  * A group of habits, e.g. "Morning Routine". Habits with `routineId == null` live in the
@@ -122,6 +122,18 @@ data class Habit(
      * See [dev.personalterminal.domain.Areas].
      */
     @ColumnInfo(defaultValue = "''") val area: String = "",
+    /**
+     * Challenge window (0.4.0): inclusive epoch days; both 0 = open-ended habit.
+     * See [dev.personalterminal.domain.Challenges].
+     */
+    @ColumnInfo(defaultValue = "0") val chStart: Long = 0L,
+    @ColumnInfo(defaultValue = "0") val chEnd: Long = 0L,
+    /** Optional XP stake on the challenge (0 = none); settled once when the window closes. */
+    @ColumnInfo(defaultValue = "0") val chStake: Int = 0,
+    /** Whether the window's stake has already been settled (prevents double XP). */
+    @ColumnInfo(defaultValue = "0") val chResolved: Boolean = false,
+    /** MONTHLY schedule: day of month 1–31 (0 = none; in short months it falls on the last day). */
+    @ColumnInfo(defaultValue = "0") val monthDay: Int = 0,
 )
 
 /** True when [epochDay] falls inside the habit's pause window `[pausedFrom, pausedUntil)`. */
@@ -321,6 +333,33 @@ data class WearLog(
     val createdAt: Long = AppClock.clock.millis(),
     /** Strap the watch was on that day (see [Strap]); null = unknown / default. */
     val strapId: Long? = null,
+)
+
+/** Additional photo of a watch (dial / caseback / papers) beyond the profile [Watch.photoPath]. */
+@Serializable
+@Entity(tableName = "watch_photos", indices = [Index("watchId")])
+data class WatchPhoto(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val watchId: Long,
+    /** Relative path inside `filesDir/watch_photos`. */
+    val path: String,
+    /** Free-form tag shown in the gallery: "dial" | "caseback" | "papers" | "". */
+    val kind: String = "",
+    val createdAt: Long = AppClock.clock.millis(),
+)
+
+/** Receipt / warranty / other document attached to a watch (file copied into `filesDir/watch_docs`). */
+@Serializable
+@Entity(tableName = "watch_documents", indices = [Index("watchId")])
+data class WatchDocument(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val watchId: Long,
+    /** Relative path inside `filesDir/watch_docs`. */
+    val path: String,
+    /** "receipt" | "warranty" | "other". */
+    val kind: String = "",
+    val label: String = "",
+    val createdAt: Long = AppClock.clock.millis(),
 )
 
 /** Persisted XP ledger — one row per reward so XP can be recomputed / audited. */
