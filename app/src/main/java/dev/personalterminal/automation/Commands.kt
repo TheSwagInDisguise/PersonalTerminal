@@ -485,7 +485,7 @@ object Commands {
                 } else {
                     val words = rest.trim().split(Regex("\\s+"))
                     val off = words.lastOrNull()?.lowercase() in setOf("off", "clear", "rm", "end")
-                    val nums = if (off) emptyList() else words.takeLastWhile { it.toIntOrNull() != null }
+                    val nums = if (off) emptyList() else words.takeLastWhile { it.toIntOrNull() != null }.map { it.toInt() }
                     val ref = words.dropLast(if (off) 1 else nums.size).joinToString(" ")
                     habit(app, ref)?.let { h ->
                         when {

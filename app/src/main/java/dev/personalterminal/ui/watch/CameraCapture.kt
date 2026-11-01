@@ -144,8 +144,8 @@ fun CameraCapture(outputFile: File, onCaptured: (File) -> Unit, onCancel: () -> 
 private fun RuleOfThirdsOverlay(modifier: Modifier = Modifier) {
     androidx.compose.foundation.Canvas(modifier = modifier.fillMaxSize()) {
         val stroke = 1.dp.toPx()
-        val faint = GrColor.argb(90, 229, 229, 229)
-        val mark = GrColor.argb(160, 197, 255, 74)
+        val faint = androidx.compose.ui.graphics.Color(GrColor.argb(90, 229, 229, 229))
+        val mark = androidx.compose.ui.graphics.Color(GrColor.argb(160, 197, 255, 74))
         for (i in 1..2) {
             val x = size.width * i / 3f
             val y = size.height * i / 3f

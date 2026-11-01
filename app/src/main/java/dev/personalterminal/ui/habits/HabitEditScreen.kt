@@ -74,6 +74,7 @@ fun HabitEditScreen(app: PersonalTerminalApp, nav: NavHostController, habitId: L
     var unit by rememberSaveable { mutableStateOf("") }
     var schedule by rememberSaveable { mutableStateOf(ScheduleType.DAILY) }
     var daysMask by rememberSaveable { mutableStateOf(127) }
+    var monthDay by rememberSaveable { mutableStateOf(15) }
     var timesPerWeek by rememberSaveable { mutableStateOf(3) }
     var selectedRoutine by rememberSaveable { mutableStateOf(routineId) }
     var color by rememberSaveable { mutableStateOf("green") }
@@ -107,7 +108,7 @@ fun HabitEditScreen(app: PersonalTerminalApp, nav: NavHostController, habitId: L
             original = h
             if (firstLoad) {
                 name = h.name; type = h.type; target = h.target; unit = h.unit; schedule = h.schedule
-                daysMask = h.daysMask; timesPerWeek = h.timesPerWeek; selectedRoutine = h.routineId; color = h.color; notes = h.notes
+                daysMask = h.daysMask; timesPerWeek = h.timesPerWeek; selectedRoutine = h.routineId; color = h.color; notes = h.notes; monthDay = h.monthDay
                 negative = h.negative; reminder = h.reminderMinutes; checkIn = h.checkIn; items = h.checklistItems; timeOfDay = h.timeOfDay; focusMin = h.focusMinutes; breakMin = h.breakMinutes; healthMetric = h.healthMetric
                 minTarget = h.minTarget; rampTo = h.rampTo; rampWeeks = h.rampWeeks; rampStartDay = h.rampStartDay; anchorId = h.anchorId; anchorRemind = h.anchorRemind || h.anchorId == 0L; area = h.area
             }
@@ -244,7 +245,10 @@ fun HabitEditScreen(app: PersonalTerminalApp, nav: NavHostController, habitId: L
         Column {
             Text("schedule:", color = p.fgDim, style = MaterialTheme.typography.labelMedium)
             RadioRow(options = ScheduleType.entries, selected = schedule, onSelect = { schedule = it }, label = {
-                when (it) { ScheduleType.DAILY -> "daily"; ScheduleType.WEEKLY -> "x/week"; ScheduleType.SPECIFIC_DAYS -> "days" }
+                when (it) {
+                    ScheduleType.DAILY -> "daily"; ScheduleType.WEEKLY -> "x/week"; ScheduleType.SPECIFIC_DAYS -> "days"
+                    ScheduleType.BIWEEKLY -> "biweekly"; ScheduleType.MONTHLY -> "monthly"
+                }
             })
             when (schedule) {
                 ScheduleType.SPECIFIC_DAYS -> Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -265,6 +269,28 @@ fun HabitEditScreen(app: PersonalTerminalApp, nav: NavHostController, habitId: L
                 ScheduleType.WEEKLY -> Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("times per week: ", color = p.fgDim, style = MaterialTheme.typography.bodyMedium)
                     Stepper(value = timesPerWeek, onChange = { timesPerWeek = it }, min = 1, max = 7)
+                }
+                ScheduleType.BIWEEKLY -> Column(Modifier.padding(top = 6.dp)) {
+                    Comment("on the masked weekdays, every other week (parity anchored at creation)")
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        DayOfWeek.entries.forEach { d ->
+                            val on = Schedule.isDayEnabled(daysMask, d)
+                            Text(
+                                d.name.take(2).lowercase(),
+                                color = if (on) p.bg else p.fgDim,
+                                style = MaterialTheme.typography.labelMedium,
+                                modifier = Modifier
+                                    .background(if (on) p.green else p.bgAlt, RoundedCornerShape(4.dp))
+                                    .border(1.dp, if (on) p.green else p.border, RoundedCornerShape(4.dp))
+                                    .clickable { daysMask = Schedule.toggle(daysMask, d) }
+                                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                            )
+                        }
+                    }
+                }
+                ScheduleType.MONTHLY -> Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("day of month: ", color = p.fgDim, style = MaterialTheme.typography.bodyMedium)
+                    Stepper(value = monthDay, onChange = { monthDay = it }, min = 1, max = 31)
                 }
                 ScheduleType.DAILY -> {}
             }
@@ -386,7 +412,7 @@ fun HabitEditScreen(app: PersonalTerminalApp, nav: NavHostController, habitId: L
                         val h = (original ?: Habit(name = "")).copy(
                             name = name.trim(), type = type,
                             target = when (type) { HabitType.CHECKBOX -> 1; HabitType.CHECKLIST -> cleanItems.size.coerceAtLeast(1); else -> target.coerceAtLeast(1) },
-                            unit = unit.trim(), schedule = schedule, daysMask = if (daysMask == 0) 127 else daysMask,
+                            unit = unit.trim(), schedule = schedule, daysMask = if (daysMask == 0) 127 else daysMask, monthDay = monthDay.coerceIn(1, 31),
                             timesPerWeek = timesPerWeek, routineId = selectedRoutine, color = color, notes = notes.trim(),
                             negative = negative && type == HabitType.CHECKBOX, reminderMinutes = reminder, checkIn = checkIn,
                             focusMinutes = if (type == HabitType.TIMER) focusMin else 0, breakMinutes = if (type == HabitType.TIMER) breakMin else 0,

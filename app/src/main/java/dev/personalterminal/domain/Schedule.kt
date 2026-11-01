@@ -23,7 +23,7 @@ object Schedule {
         // mask 127 = every day of the "on" week.
         ScheduleType.BIWEEKLY -> isDayEnabled(habit.daysMask, date.dayOfWeek) && weekParity(habit) == weekIndex(date) % 2
         ScheduleType.MONTHLY -> habit.monthDay > 0 &&
-            date.dayOfMonth == habit.monthDay.coerceAtMost(date.lengthOfMonth().toLong()).toInt()
+            date.dayOfMonth == habit.monthDay.coerceAtMost(date.lengthOfMonth())
     }
 
     /** Parity (0/1) of the habit's creation week — the anchor for the biweekly rhythm. */

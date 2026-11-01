@@ -2,6 +2,7 @@ package dev.personalterminal.ui.watch
 
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.Paint
@@ -73,8 +74,8 @@ fun CollectionReportScreen(app: PersonalTerminalApp, nav: NavHostController) {
         val ws = app.watches.allWatches()
         val active = ws.filter { it.owned || it.inRepair }
         val sold = ws.filter { it.sold }
-        val photos = active.associateWith { app.watches.observeWatchPhotos(it.id).first() }
-        val docs = active.associateWith { app.watches.observeWatchDocuments(it.id).first() }
+        val photos = active.associate { it.id to app.watches.observeWatchPhotos(it.id).first() }
+        val docs = active.associate { it.id to app.watches.observeWatchDocuments(it.id).first() }
         val services = app.watches.observeAllServices().first().groupBy { it.watchId }
         model = ReportModel(active, sold, photos, docs, services)
     }
