@@ -26,6 +26,7 @@
     <string name="notification_channel_watch">Watch service</string>
     <string name="notification_channel_watch_desc">Service and maintenance reminders for your watches</string>
     <string name="tile_timer_label">Focus timer</string>
+    <string name="tile_done_label">Mark done</string>
     <string name="shortcut_timer_short">timer</string>
     <string name="shortcut_timer_long">Start a focus session</string>
     <string name="shortcut_wear_short">wear</string>
