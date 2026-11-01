@@ -42,6 +42,8 @@ remind <habit> 07:30      set / `off` the reminder     remind <habit> checkin on
 remind                    list reminders
 away <reason> [3d | yyyy-mm-dd [yyyy-mm-dd]]           streak insurance: auto-skip a date range
 away <reason>             open-ended (until `back`)    away                 list rules
+lan on | lan off          serve the shell over Wi-Fi at http://phone:7331 (token-protected) · lan = status
+export db                 WAL-checkpoint + share the Room file (every table) as a .db
 back                      end every open-ended rule today
 ls · status · review · review year · achievements · insights · timeline · journal · settings
 theme <name> · font <name|theme> · icon <name> · dark · light · backup · help

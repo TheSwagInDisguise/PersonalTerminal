@@ -20,6 +20,7 @@ ViewPermissionUsageActivity
 .widget.HabitWidgetReceiver
 .widget.StreakWidgetReceiver
 .widget.TimerWidgetReceiver
+.widget.VaultWidgetReceiver
 action:dev.personalterminal.ACTION_WIDGET_REFRESH
 
 # Notifications / automation (Tasker, adb, shortcuts).
@@ -34,9 +35,10 @@ action:dev.personalterminal.action.TIMER_START
 action:dev.personalterminal.action.TIMER_STOP
 action:dev.personalterminal.action.BACKUP
 
-# Services – running timer + Quick Settings tile.
+# Services – running timer + Quick Settings tiles.
 .timer.TimerTileService
 .timer.PomodoroService
+.tiles.DoneTileService
 
 # Content providers.
 authority:${applicationId}.fileprovider

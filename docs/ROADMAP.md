@@ -91,6 +91,8 @@ have been removed rather than left open.
 | 5.5 ✅ | **Tasker / intent API** (`dev.personalterminal.ACTION_TOGGLE` with habit name) and an **Android Assistant / App Actions** "mark X done" | Automation crowd | S |
 | 5.7 ✅ | **Live widgets** (0.3.4): the home-screen widgets observe the database (a tap or an in-app change re-renders immediately) and roll over at midnight by themselves | Stale widgets were the #1 annoyance | S |
 | 5.6 ✅ | **Health Connect** read (steps, sleep, workouts) to auto-complete matching habits | Removes manual logging for the most common habits | L |
+| 5.7 ✅ | **Vault widget** (0.4.1): 2×2 photo widget — today's worn watch or the suggestion, name + `next: …` line, tap opens the app; refreshes on app start, wear log and every 30 min | The watch side had no widget at all | M |
+| 5.8 ✅ | **"Done" quick-settings tile** (0.4.1): one tap ticks the top due habit, label = its name, `x/y · tap to tick` subtitle, `perfect day ✓` when clear | The 90 % case with zero taps into the app | S |
 
 ## 6. Terminal experience
 
@@ -101,6 +103,7 @@ have been removed rather than left open.
 | 6.3 ✅ | **Font choice** — nine bundled families (JetBrains Mono, Fira Code, Roboto Mono, IBM Plex Mono, Source Code Pro, Victor Mono, Space Mono, VT323, system); themes carry a paired font, manual picks pin it. **Selectable launcher icon** (six variants) landed alongside in 0.3.3 | — | S |
 | 6.4 ✅ | **CRT / scanline shader** done properly with `RenderEffect` (currently a simple overlay), plus an optional typing sound | Nostalgia dial | S |
 | 6.5 ✅ | **Landscape / tablet layout**: tmux-style split panes (today | timeline) | Foldables and tablets | M |
+| 6.6 ✅ | **LAN shell** (0.4.1, `lan on`): token-protected text UI at `http://phone:7331` — the same command shell a laptop can drive, today's status line, read-only heatmap page; plain-socket HTTP/1.1, no dependencies; `lan off` stops it | The honest answer to "web app" for one person, one phone | L |
 | 6.6 ✅ | **Accessibility pass**: TalkBack labels for ASCII bars/checkboxes, larger-font layouts, reduced-motion toggle | Broadens the audience and is the right thing to do | S |
 
 ## 7. Data, sync & platform
@@ -135,4 +138,4 @@ plus the advisory install-over-install rehearsal on an emulator. Details in the 
 
 1. **Multi-device sync (7.3)** – encrypted backups + Drive folder give it a base to stand on.
 
-Further candidates — a wrist-shot contact sheet, service warnings at wear time, SQLite export, a "done next habit" quick tile and a vault widget — live in [IDEAS.md](IDEAS.md) with an honest effort estimate for each, together with the **B-list** of next majors (0.3.6 watch lifecycle / wishlist / `uptime` / rotation challenges ✅ → 0.3.8 focus & feel: ambient sounds / ASCII garden / screensaver / app lock ✅ → 0.4.0 challenges / gallery & documents / collection report / contact sheet ✅ → B16 `sshd` → 0.5.0 multi-device sync). The 0.3.5 bundle (strength, minimum & ramp, stacking, comeback nudge, evening summary, life areas) is ticked there.
+Further candidates — a wrist-shot contact sheet, service warnings at wear time, SQLite export, a "done next habit" quick tile and a vault widget — live in [IDEAS.md](IDEAS.md) with an honest effort estimate for each, together with the **B-list** of next majors (0.3.6 watch lifecycle / wishlist / `uptime` / rotation challenges ✅ → 0.3.8 focus & feel: ambient sounds / ASCII garden / screensaver / app lock ✅ → 0.4.0 challenges / gallery & documents / collection report / contact sheet ✅ → 0.4.1 LAN shell / done tile / vault widget / water warnings / SQLite export ✅ → 0.5.0 multi-device sync). The 0.3.5 bundle (strength, minimum & ramp, stacking, comeback nudge, evening summary, life areas) is ticked there.
