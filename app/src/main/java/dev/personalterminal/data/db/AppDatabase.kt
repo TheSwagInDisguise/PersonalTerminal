@@ -21,9 +21,9 @@ class Converters {
     entities = [
         Routine::class, Habit::class, HabitLog::class, ShieldUse::class, Watch::class, WearLog::class, XpEvent::class,
         FocusSession::class, WatchService::class, AccuracyReading::class, Strap::class, SkipRule::class, SleepLog::class, StrapSwap::class,
-        WatchPhoto::class, WatchDocument::class,
+        WatchPhoto::class, WatchDocument::class, SyncEvent::class,
     ],
-    version = 9,
+    version = 10,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -44,6 +44,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun strapSwapDao(): StrapSwapDao
     abstract fun watchPhotoDao(): WatchPhotoDao
     abstract fun watchDocumentDao(): WatchDocumentDao
+    abstract fun syncEventDao(): SyncEventDao
 
     /** Wipes every table inside one transaction (used when restoring a backup). */
     suspend fun clearAllData() = withTransaction {
@@ -72,7 +73,7 @@ abstract class AppDatabase : RoomDatabase() {
 
         fun get(context: Context): AppDatabase = INSTANCE ?: synchronized(this) {
             INSTANCE ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, NAME)
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build()
                 .also { INSTANCE = it }
@@ -96,6 +97,17 @@ abstract class AppDatabase : RoomDatabase() {
                         "watchId INTEGER NOT NULL, path TEXT NOT NULL, kind TEXT NOT NULL, label TEXT NOT NULL, createdAt INTEGER NOT NULL)",
                 )
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_watch_documents_watchId ON watch_documents (watchId)")
+            }
+        }
+
+        /** 0.4.1 → 0.5.0: append-only sync journal (7.3). Additive only. */
+        val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS sync_log (device TEXT NOT NULL, seq INTEGER NOT NULL, " +
+                        "ts INTEGER NOT NULL, entity TEXT NOT NULL, rowId TEXT NOT NULL, " +
+                        "op TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(device, seq))",
+                )
             }
         }
 

@@ -491,3 +491,29 @@ data class StrapSwap(
     val note: String = "",
     val createdAt: Long = AppClock.clock.millis(),
 )
+
+/**
+ * One append-only sync journal entry (7.3). Every local mutation of a base table is recorded
+ * here; devices exchange these rows through Drive chunks and replay them with per-row
+ * last-writer-wins on (ts, device). `rowId` is the primary key of the affected row as text
+ * ("prefs:theme" for settings keys). The composite (device, seq) primary key lets a peer's
+ * rows be inserted verbatim without colliding with local sequence numbers.
+ */
+@Serializable
+@Entity(tableName = "sync_log", primaryKeys = ["device", "seq"])
+data class SyncEvent(
+    /** Stable per-install id (DataStore `sync_device`). */
+    val device: String,
+    /** Monotonic per-device sequence, 1-based. */
+    val seq: Long,
+    /** Wall-clock ms at emit time — the LWW tie-breaks on (ts, device). */
+    val ts: Long,
+    /** Base table the event applies to (`habits`, `habit_logs`, …, `prefs`). */
+    val entity: String,
+    /** Primary key of the row as text; `prefs:<key>` for settings. */
+    val rowId: String,
+    /** `u` = upsert with payload, `d` = delete. */
+    val op: String,
+    /** kotlinx.serialization JSON of the row after the write; "" for deletes. */
+    val payload: String = "",
+)

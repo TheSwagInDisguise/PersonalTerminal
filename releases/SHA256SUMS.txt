@@ -1,1 +1,1 @@
-f27b5a62e89cb05635429a65208ac8bdb7a2f912de7d5df2f26443e09afb7fdd  personal-terminal-0.4.0.apk
+80562233adfa5620aafc74eb1d8d68cdc654157869e659f66c5b5bf76ade6fe7  personal-terminal-0.4.1.apk

@@ -525,3 +525,35 @@ interface WatchDocumentDao {
     @Query("DELETE FROM watch_documents")
     suspend fun deleteAll()
 }
+
+/** Append-only journal for multi-device sync (7.3). Reads are cursor- and LWW-driven. */
+@Dao
+interface SyncEventDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(event: SyncEvent)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(events: List<SyncEvent>)
+
+    /** Highest sequence this device has emitted (local push cursor base). */
+    @Query("SELECT COALESCE(MAX(seq), 0) FROM sync_log WHERE device = :device")
+    suspend fun maxSeq(device: String): Long
+
+    /** Local events not yet pushed to Drive. */
+    @Query("SELECT * FROM sync_log WHERE device = :device AND seq > :since ORDER BY seq ASC")
+    suspend fun since(device: String, since: Long): List<SyncEvent>
+
+    /** Every event for one row — the LWW comparison set when applying a remote row. */
+    @Query("SELECT * FROM sync_log WHERE entity = :entity AND rowId = :rowId")
+    suspend fun forRow(entity: String, rowId: String): List<SyncEvent>
+
+    @Query("SELECT COUNT(*) FROM sync_log")
+    suspend fun count(): Int
+
+    /** Housekeeping: drop entries older than the retention window once all cursors advanced. */
+    @Query("DELETE FROM sync_log WHERE ts < :before")
+    suspend fun pruneBefore(before: Long)
+
+    @Query("SELECT * FROM sync_log ORDER BY ts ASC")
+    fun observeAll(): kotlinx.coroutines.flow.Flow<List<SyncEvent>>
+}
