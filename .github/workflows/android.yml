@@ -105,6 +105,18 @@ jobs:
       - name: Unit tests
         run: ./gradlew testDebugUnitTest --console=plain --stacktrace
 
+      # Room's KSP export writes the newest schema during the compile that precedes the tests.
+      # Ship them as an artifact (even on failure) so every *shipped* schema can be committed —
+      # the upgrade test walks the committed set and a missing JSON is a gate failure.
+      - name: Upload Room schemas
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: room-schemas-${{ github.run_number }}
+          path: app/schemas/**/*.json
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Lint
         run: ./gradlew lintDebug --console=plain
 
