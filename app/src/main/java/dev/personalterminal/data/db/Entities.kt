@@ -292,6 +292,8 @@ data class Watch(
     @ColumnInfo(defaultValue = "0") val powerReserveHours: Int = 0,
     /** Comma-separated tokens from [dev.personalterminal.domain.Uptime.COMPLICATIONS] (`date,moonphase`). */
     @ColumnInfo(defaultValue = "''") val complications: String = "",
+    /** Water resistance in metres (0 = not rated / unknown) — drives the wear-log swim badge. */
+    @ColumnInfo(defaultValue = "0") val waterResistanceM: Int = 0,
 ) {
     companion object {
         const val STATUS_OWNED = "owned"

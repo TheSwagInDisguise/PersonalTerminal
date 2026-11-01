@@ -107,6 +107,7 @@ fun WatchDetailScreen(app: PersonalTerminalApp, nav: NavHostController, watchId:
                 if (w.reference.isNotBlank()) KeyValue("ref", w.reference)
                 if (w.movement.isNotBlank()) KeyValue("movement", w.movement, valueColor = color)
                 w.caseSizeMm?.let { KeyValue("case", "${it.toString().removeSuffix(".0")} mm") }
+                if (w.waterResistanceM > 0) KeyValue("water", "${w.waterResistanceM} m", valueColor = if (w.waterResistanceM in 1..99) p.orange else color)
                 KeyValue("wrist days", "${logs.size}", valueColor = color)
                 logs.firstOrNull()?.let { KeyValue("last worn", LocalDate.ofEpochDay(it.log.day).format(DateTimeFormatter.ofPattern("dd MMM yyyy"))) }
                 straps.firstOrNull { it.watchId == w.id }?.let { KeyValue("on strap", it.name, valueColor = p.cyan) }

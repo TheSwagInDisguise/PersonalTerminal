@@ -23,7 +23,7 @@ class Converters {
         FocusSession::class, WatchService::class, AccuracyReading::class, Strap::class, SkipRule::class, SleepLog::class, StrapSwap::class,
         WatchPhoto::class, WatchDocument::class,
     ],
-    version = 8,
+    version = 9,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -72,7 +72,7 @@ abstract class AppDatabase : RoomDatabase() {
 
         fun get(context: Context): AppDatabase = INSTANCE ?: synchronized(this) {
             INSTANCE ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, NAME)
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build()
                 .also { INSTANCE = it }
@@ -96,6 +96,13 @@ abstract class AppDatabase : RoomDatabase() {
                         "watchId INTEGER NOT NULL, path TEXT NOT NULL, kind TEXT NOT NULL, label TEXT NOT NULL, createdAt INTEGER NOT NULL)",
                 )
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_watch_documents_watchId ON watch_documents (watchId)")
+            }
+        }
+
+        /** 0.4.0 → 0.4.1: water resistance rating on watches. Additive only. */
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE watches ADD COLUMN waterResistanceM INTEGER NOT NULL DEFAULT 0")
             }
         }
 

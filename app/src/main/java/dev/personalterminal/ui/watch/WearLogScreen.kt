@@ -23,6 +23,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -66,6 +67,16 @@ fun WearLogScreen(app: PersonalTerminalApp, nav: NavHostController, epochDay: Lo
     val photo = rememberPhotoPickerState(initialPath = null)
     photo.tag = watches.firstOrNull { it.id == selected }?.displayName
     if (photoPickerCamera(app, photo)) return
+    // A7 — service / water-resistance warnings at the moment of choice
+    var serviceDue by remember { mutableStateOf(setOf<Long>()) }
+    LaunchedEffect(watches, date) {
+        serviceDue = buildSet {
+            for (w in watches) {
+                val due = runCatching { app.watches.nextServiceDue(w) }.getOrNull()
+                if (due != null && !due.isAfter(date)) add(w.id)
+            }
+        }
+    }
 
     Column(Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         PromptLine("wear log", trailing = date.format(DateTimeFormatter.ofPattern("EEE dd MMM")))
@@ -106,6 +117,12 @@ fun WearLogScreen(app: PersonalTerminalApp, nav: NavHostController, epochDay: Lo
                             WatchThumb(app, w, 56.dp)
                             Spacer(Modifier.height(4.dp))
                             Text(w.displayName, color = if (sel) p.fg else p.fgDim, style = MaterialTheme.typography.labelSmall, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center, fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal)
+                            if (w.id in serviceDue) {
+                                Text("⚠ service due", color = p.red, style = MaterialTheme.typography.labelSmall)
+                            }
+                            if (w.waterResistanceM in 1..99) {
+                                Text("⚠ not for swimming", color = p.orange, style = MaterialTheme.typography.labelSmall)
+                            }
                         }
                     }
                     repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }

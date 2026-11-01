@@ -77,6 +77,7 @@ fun WatchEditScreen(app: PersonalTerminalApp, nav: NavHostController, watchId: L
     var serviceInterval by rememberSaveable { mutableStateOf("") }
     var powerReserve by rememberSaveable { mutableStateOf("") }
     var complications by rememberSaveable { mutableStateOf(setOf<String>()) }
+    var water by rememberSaveable { mutableStateOf("") }
     var wishlist by rememberSaveable { mutableStateOf(startOnWishlist) }
     var targetPrice by rememberSaveable { mutableStateOf("") }
     var link by rememberSaveable { mutableStateOf("") }
@@ -97,6 +98,7 @@ fun WatchEditScreen(app: PersonalTerminalApp, nav: NavHostController, watchId: L
                 purchaseDate = w.purchaseDay?.let { java.time.LocalDate.ofEpochDay(it).toString() } ?: ""; currentValue = w.currentValue?.let { "%.0f".format(it) } ?: ""
                 currency = w.currency; serviceInterval = if (w.serviceIntervalMonths > 0) w.serviceIntervalMonths.toString() else ""
                 powerReserve = if (w.powerReserveHours > 0) w.powerReserveHours.toString() else ""; complications = w.complicationSet
+                water = if (w.waterResistanceM > 0) w.waterResistanceM.toString() else ""
                 wishlist = w.status == Watch.STATUS_WISHLIST; targetPrice = w.targetPrice?.let { "%.0f".format(it) } ?: ""; link = w.link
             }
             if (photo.photoPath == null) photo.photoPath = w.photoPath
@@ -167,6 +169,7 @@ fun WatchEditScreen(app: PersonalTerminalApp, nav: NavHostController, watchId: L
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             TermTextField(value = lugWidth, onValueChange = { lugWidth = it.filter { c -> c.isDigit() }.take(2) }, label = "lug mm", placeholder = "20", keyboardType = KeyboardType.Number, modifier = Modifier.weight(1f))
             TermTextField(value = serviceInterval, onValueChange = { serviceInterval = it.filter { c -> c.isDigit() }.take(3) }, label = "service every (months)", placeholder = "60", keyboardType = KeyboardType.Number, modifier = Modifier.weight(1f))
+            TermTextField(value = water, onValueChange = { water = it.filter { c -> c.isDigit() }.take(4) }, label = "water (m)", placeholder = "30/100/300", keyboardType = KeyboardType.Number, modifier = Modifier.weight(1f))
         }
         if (wishlist) TerminalPanel(title = "wishlist", titleColor = p.yellow) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -199,6 +202,7 @@ fun WatchEditScreen(app: PersonalTerminalApp, nav: NavHostController, watchId: L
                         purchaseDay = runCatching { java.time.LocalDate.parse(purchaseDate).toEpochDay() }.getOrNull(), currency = currency.trim(),
                         serviceIntervalMonths = serviceInterval.toIntOrNull() ?: 0,
                         powerReserveHours = powerReserve.toIntOrNull() ?: 0, complications = Uptime.COMPLICATIONS.filter { it in complications }.joinToString(","),
+                        waterResistanceM = water.toIntOrNull()?.coerceIn(0, 10000) ?: 0,
                         targetPrice = targetPrice.toDoubleOrNull(), link = link,
                         status = when {
                             wishlist -> Watch.STATUS_WISHLIST
