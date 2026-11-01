@@ -66,7 +66,6 @@ fun WearLogScreen(app: PersonalTerminalApp, nav: NavHostController, epochDay: Lo
     var note by remember { mutableStateOf("") }
     val photo = rememberPhotoPickerState(initialPath = null)
     photo.tag = watches.firstOrNull { it.id == selected }?.displayName
-    if (photoPickerCamera(app, photo)) return
     // A7 — service / water-resistance warnings at the moment of choice
     var serviceDue by remember { mutableStateOf(setOf<Long>()) }
     LaunchedEffect(watches, date) {
@@ -77,6 +76,7 @@ fun WearLogScreen(app: PersonalTerminalApp, nav: NavHostController, epochDay: Lo
             }
         }
     }
+    if (photoPickerCamera(app, photo)) return
 
     Column(Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         PromptLine("wear log", trailing = date.format(DateTimeFormatter.ofPattern("EEE dd MMM")))
