@@ -242,6 +242,39 @@ object Commands {
             "unskip" -> habit(app, rest)?.let { h -> app.habits.unskip(h.id, date); ok("${h.name} un-skipped") } ?: noHabit(rest)
             "vault" -> ok("watch vault", Routes.WATCH_BOX)
             "insure", "report" -> ok("collection report", Routes.COLLECTION_REPORT)
+            "lan" -> {
+                when (rest.trim().lowercase()) {
+                    "on", "start" -> ok(dev.personalterminal.lan.LanServer.start(app))
+                    "off", "stop" -> ok(dev.personalterminal.lan.LanServer.stop())
+                    else -> {
+                        val s = dev.personalterminal.lan.LanServer.state.value
+                        if (s.running) ok("lan up → ${s.url}\n# drive it from a laptop · `lan off` stops it")
+                        else ok("lan is down · `lan on` serves the shell at http://phone:7331 (token-protected)")
+                    }
+                }
+            }
+            "export" -> {
+                when (rest.trim().lowercase()) {
+                    "db", "database" -> {
+                        runCatching {
+                            // flush the WAL so the copied file is a complete, standalone database
+                            app.db.openHelper.writableDatabase.query("PRAGMA wal_checkpoint(TRUNCATE)").use { it.moveToFirst() }
+                            val src = context.getDatabasePath(dev.personalterminal.data.db.AppDatabase.NAME)
+                            val dir = java.io.File(context.cacheDir, "exports").apply { mkdirs() }
+                            val dst = java.io.File(dir, "personal-terminal-${date}.db")
+                            src.copyTo(dst, overwrite = true)
+                            val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", dst)
+                            val i = android.content.Intent(android.content.Intent.ACTION_SEND)
+                                .setType("application/octet-stream")
+                                .putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                                .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                            context.startActivity(android.content.Intent.createChooser(i, "export database"))
+                            "exported ${dst.name} · ${dst.length() / 1024} KB"
+                        }.fold({ ok(it) }, { e -> err("export failed: ${e.message}") })
+                    }
+                    else -> ok("usage: export db  — ships the Room file (every table) as a shareable .db")
+                }
+            }
             "away", "insurance" -> {
                 if (rest.isBlank() || rest.trim() == "list" || rest.trim() == "ls") {
                     val rules = app.habits.skipRules()
@@ -686,6 +719,8 @@ object Commands {
         |strap <strap> <watch|drawer>   swap log
         |tick <habit> <item>   remind <habit> 07:30
         |away <why> [3d|dates] back
+        |lan on|off             drive the shell over Wi-Fi (http://phone:7331)
+        |export db              ship the Room file (every table) as a .db
         |habit add [template]  ls · status
         |stats [habit]         30/90/365d block
         |strength [habit]      min <habit> [n]
