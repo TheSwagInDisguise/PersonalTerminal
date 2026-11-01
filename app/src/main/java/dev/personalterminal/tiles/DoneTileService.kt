@@ -9,6 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * A12 — quick-settings "done": one tap ticks the top due, undone habit; the tile shows its
@@ -49,21 +50,20 @@ class DoneTileService : TileService() {
         val next = s?.active?.firstOrNull { !it.completed }
         val done = s?.done ?: 0
         val total = s?.active?.size ?: 0
-        runOnUiThread {
-            tile.state = when {
-                s == null -> Tile.STATE_UNAVAILABLE
-                next == null -> Tile.STATE_ACTIVE
-                else -> Tile.STATE_INACTIVE
-            }
-            tile.label = next?.habit?.name ?: "all done"
-            if (android.os.Build.VERSION.SDK_INT >= 29) {
-                tile.subtitle = when {
-                    s == null -> ""
-                    next == null -> "perfect day ✓"
-                    else -> "$done/$total · tap to tick"
-                }
-            }
-            tile.updateTile()
+        // render() is always invoked on the main dispatcher (scope/Main + inner launch(Main))
+        tile.state = when {
+            s == null -> Tile.STATE_UNAVAILABLE
+            next == null -> Tile.STATE_ACTIVE
+            else -> Tile.STATE_INACTIVE
         }
+        tile.label = next?.habit?.name ?: "all done"
+        if (android.os.Build.VERSION.SDK_INT >= 29) {
+            tile.subtitle = when {
+                s == null -> ""
+                next == null -> "perfect day ✓"
+                else -> "$done/$total · tap to tick"
+            }
+        }
+        tile.updateTile()
     }
 }
