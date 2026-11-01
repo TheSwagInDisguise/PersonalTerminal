@@ -265,6 +265,20 @@
                 android:value="true" />
         </service>
 
+        <!-- Vault home-screen widget: today's watch photo + next suggestion -->
+        <receiver
+            android:name=".widget.VaultWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_vault_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="dev.personalterminal.ACTION_WIDGET_REFRESH" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/vault_widget_info" />
+        </receiver>
+
         <!-- Pomodoro timer foreground service -->
         <service
             android:name=".timer.PomodoroService"

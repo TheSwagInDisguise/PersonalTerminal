@@ -72,6 +72,7 @@ open class PersonalTerminalApp : Application() {
             if (s.healthConnect) runCatching { dev.personalterminal.health.HealthSync.syncNow(this@PersonalTerminalApp) }
             runCatching { AppShortcuts.publish(this@PersonalTerminalApp) }
             runCatching { dev.personalterminal.widget.WidgetRollover.schedule(this@PersonalTerminalApp) }
+            runCatching { dev.personalterminal.widget.VaultWidgetReceiver.refreshAll(this@PersonalTerminalApp) }
         }
 
         // Any data mutation → refresh widget and (if enabled) request a debounced backup.

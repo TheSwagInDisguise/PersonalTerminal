@@ -121,6 +121,7 @@ fun WearLogScreen(app: PersonalTerminalApp, nav: NavHostController, epochDay: Lo
             TermButton("log it", filled = true, color = p.cyan, enabled = selected != 0L, modifier = Modifier.weight(1f), onClick = {
                 scope.launch {
                     app.watches.logWear(selected, date, photo.photoPath, note.trim())
+                    runCatching { dev.personalterminal.widget.VaultWidgetReceiver.refreshAll(app) }
                     nav.popBackStack()
                 }
             })
