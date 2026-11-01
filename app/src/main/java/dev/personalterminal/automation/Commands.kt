@@ -471,6 +471,30 @@ object Commands {
             "year" -> ok("year in review", Routes.YEAR_REVIEW)
             "man", "achievements" -> ok("achievements", Routes.ACHIEVEMENTS)
             "insights", "correlations" -> ok("insights", Routes.INSIGHTS)
+            "garden", "plant", "grow" -> ok("garden", Routes.GARDEN)
+            "saver" -> {
+                val id = rest.trim().lowercase().substringBefore(' ')
+                when {
+                    id.isBlank() || id == "ls" -> ok("saver: ${app.prefs.current().saverPattern} · options: off matrix life stars")
+                    id in listOf("off", "matrix", "life", "stars") -> {
+                        app.prefs.setSaver(id)
+                        ok("saver → $id" + if (id == "off") "" else " (after ${app.prefs.current().saverAfterMin} min idle)")
+                    }
+                    else -> err("saver: off matrix life stars")
+                }
+            }
+            "ambient", "amb" -> {
+                val id = rest.trim().lowercase().substringBefore(' ')
+                when {
+                    id.isBlank() || id == "ls" -> ok("amb: ${app.prefs.current().ambientSound} · options: off rain brown keys")
+                    id in dev.personalterminal.timer.AmbientAudio.PATTERNS -> {
+                        app.prefs.setAmbient(id)
+                        dev.personalterminal.timer.AmbientAudio.setPattern(id)
+                        ok("ambient → $id" + if (id == "off") "" else " (plays during focus phases)")
+                    }
+                    else -> err("ambient: off rain brown keys")
+                }
+            }
             "timeline", "log" -> ok("timeline", Routes.TIMELINE)
             "profile", "whoami" -> ok("profile", Routes.PROFILE)
             "settings", "config", "vim" -> ok("settings", Routes.SETTINGS)
@@ -617,6 +641,7 @@ object Commands {
         |ramp <habit> 30 8     after <habit> <anchor>
         |area <habit> body     sort strength|routine
         |review [year] · achievements · insights
+        |garden · saver matrix|off · amb rain|keys
         |theme <name> · font <name> · icon <name>
     """.trimMargin()
 }

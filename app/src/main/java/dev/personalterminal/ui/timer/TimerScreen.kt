@@ -128,6 +128,7 @@ fun TimerScreen(app: PersonalTerminalApp, nav: NavHostController, initialHabitId
                 Text(if (!stopwatchMode) "[•] countdown" else "[ ] countdown", color = if (!stopwatchMode) p.green else p.fgDim, style = MaterialTheme.typography.labelMedium, modifier = Modifier.clickable { stopwatchMode = false }.padding(4.dp))
                 Text(if (stopwatchMode) "[•] stopwatch" else "[ ] stopwatch", color = if (stopwatchMode) p.green else p.fgDim, style = MaterialTheme.typography.labelMedium, modifier = Modifier.clickable { stopwatchMode = true }.padding(4.dp))
                 Spacer(Modifier.weight(1f))
+                Text("garden →", color = p.green, style = MaterialTheme.typography.labelMedium, modifier = Modifier.clickable { nav.navigate(Routes.GARDEN) }.padding(4.dp))
                 Text("sessions →", color = p.cyan, style = MaterialTheme.typography.labelMedium, modifier = Modifier.clickable { nav.navigate(Routes.SESSIONS) }.padding(4.dp))
             }
         }
@@ -210,6 +211,44 @@ fun TimerScreen(app: PersonalTerminalApp, nav: NavHostController, initialHabitId
                 }
                 if (!enabled) Comment("stop the session to change the target habit")
             }
+        }
+
+        TerminalPanel(title = "ambience") {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("sound", color = p.fgDim, style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.width(10.dp))
+                dev.personalterminal.timer.AmbientAudio.PATTERNS.forEach { m ->
+                    val sel = settings.ambientSound == m
+                    Text(
+                        (if (sel) "[✓ " else "[  ") + m + "]",
+                        color = if (sel) p.green else p.fgDim,
+                        style = MaterialTheme.typography.labelMedium,
+                        modifier = Modifier
+                            .clickable {
+                                scope.launch { app.prefs.setAmbient(m) }
+                                dev.personalterminal.timer.AmbientAudio.setPattern(m)
+                            }
+                            .padding(horizontal = 4.dp),
+                    )
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("volume", color = p.fgDim, style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.width(10.dp))
+                Text("−", color = p.green, style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.clickable(enabled = settings.ambientVolume > 0) {
+                        val v = (settings.ambientVolume - 10).coerceAtLeast(0)
+                        scope.launch { app.prefs.setAmbientVolume(v) }; dev.personalterminal.timer.AmbientAudio.setVolume(v)
+                    }.padding(horizontal = 8.dp))
+                Text("${settings.ambientVolume}%", color = p.fg, style = MaterialTheme.typography.bodyMedium)
+                Text("+", color = p.green, style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.clickable(enabled = settings.ambientVolume < 100) {
+                        val v = (settings.ambientVolume + 10).coerceAtMost(100)
+                        scope.launch { app.prefs.setAmbientVolume(v) }; dev.personalterminal.timer.AmbientAudio.setVolume(v)
+                    }.padding(horizontal = 8.dp))
+            }
+            Comment("procedural rain / brown noise / key clicks play during focus, stop for breaks · volume rides on media")
         }
 
         TerminalPanel(title = "config") {

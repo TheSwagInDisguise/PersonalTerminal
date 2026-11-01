@@ -3,8 +3,10 @@
 Ideas for where Personal Terminal can go next, grouped by theme and roughly ordered by
 value-for-effort inside each group. Effort: **S** = an evening, **M** = a weekend, **L** = a multi-week feature.
 
-**Status (0.3.5):** everything marked ✅ has shipped – see the release notes and
+**Status (0.3.7):** everything marked ✅ has shipped – see the release notes and
 [docs/AUTOMATION.md](AUTOMATION.md) for the command line / intent API. Unmarked rows are still open.
+Tags v0.3.3–v0.3.7 were published retroactively so the tag line matches the shipped bundles; the
+next release continues from v0.3.8 (see the B-list bundle plan in [IDEAS.md](IDEAS.md)).
 
 **Scope note.** Personal Terminal is a *personal-use* project that leans heavily on the ideas in
 Init Habits. It will not be published to any store and will not grow a Wear OS companion; rows that
@@ -39,7 +41,7 @@ have been removed rather than left open.
 | 2.1 ✅ | **Session history + per-day focus minutes** on the profile heatmap (second colour channel or toggle) | Timer data is already credited to habits but never visualised on its own | S |
 | 2.2 ✅ | **Stopwatch mode** (count up, stop when done) for open-ended habits like "practice guitar" | Some habits have no fixed length | S |
 | 2.3 ✅ | **Custom intervals per habit** (25/5 vs 50/10) and *auto-start next phase* toggle | Power-user ergonomics | S |
-| 2.4 | **Ambient sounds / tick** (rain, brown noise, mechanical-keyboard clicks) with independent volume | Popular in pomodoro apps, fits the vibe | M |
+| 2.4 ✅ | **Ambient sounds / tick** (rain, brown noise, mechanical-keyboard clicks) with independent volume (shipped 0.3.8: procedurally generated, `amb` at the prompt, chips on the timer screen) | Popular in pomodoro apps, fits the vibe | M |
 | 2.5 ✅ | **Do-Not-Disturb during focus** (request `ACCESS_NOTIFICATION_POLICY`) | Real focus protection | S |
 | 2.8 ✅ | **Timer resilience** (0.3.4): partial wake lock while running, a 30-second exact-alarm heartbeat that repaints the island/chip and flips phases on time under doze, and session persistence so a process kill resumes the countdown | Long focus sessions on aggressive OEM battery management | S |
 | 2.7 ✅ | Live-Update polish for the ColorOS island: works once "live updates" is allowed for the app in system settings; a **compact live update** switch trims the notification to logo + time left so the island stays small | Vendor-specific | S |
@@ -129,8 +131,7 @@ plus the advisory install-over-install rehearsal on an emulator. Details in the 
 
 ## Still open
 
-1. **Ambient sounds (2.4)** – rain / brown noise / keyboard clicks under the timer.
-2. **Wrist-shot camera frame (3.9)** – rule-of-thirds overlay and an EXIF stamp with the watch name.
-3. **Multi-device sync (7.3)** – encrypted backups + Drive folder give it a base to stand on.
+1. **Wrist-shot camera frame (3.9)** – rule-of-thirds overlay and an EXIF stamp with the watch name.
+2. **Multi-device sync (7.3)** – encrypted backups + Drive folder give it a base to stand on.
 
-Further candidates — a wrist-shot contact sheet, service warnings at wear time, SQLite export, a "done next habit" quick tile and a vault widget — live in [IDEAS.md](IDEAS.md) with an honest effort estimate for each, together with the **B-list** of next majors (0.3.6 watch lifecycle / wishlist / `uptime` / rotation challenges → 0.3.7 ambient sounds / ASCII garden / screensaver / app lock → 0.4.0 challenges / collection report). The 0.3.5 bundle (strength, minimum & ramp, stacking, comeback nudge, evening summary, life areas) is ticked there.
+Further candidates — a wrist-shot contact sheet, service warnings at wear time, SQLite export, a "done next habit" quick tile and a vault widget — live in [IDEAS.md](IDEAS.md) with an honest effort estimate for each, together with the **B-list** of next majors (0.3.6 watch lifecycle / wishlist / `uptime` / rotation challenges ✅ → 0.3.8 focus & feel: ambient sounds / ASCII garden / screensaver / app lock ✅ → 0.4.0 challenges / collection report → B16 `sshd` → 0.5.0 multi-device sync). The 0.3.5 bundle (strength, minimum & ramp, stacking, comeback nudge, evening summary, life areas) is ticked there.

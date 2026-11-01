@@ -76,6 +76,20 @@ data class Settings(
     val todaySections: Boolean = false,
     /** "" = routine order · "strength" = weakest habits first inside each block. */
     val todaySort: String = "",
+    /** Ambient focus sound: "off" | "rain" | "brown" | "keys" (procedurally generated, no assets). */
+    val ambientSound: String = "off",
+    /** Ambient mix level 0–100 (applied on top of the media volume). */
+    val ambientVolume: Int = 60,
+    /** Idle screensaver: "off" | "matrix" | "life" | "stars". */
+    val saverPattern: String = "off",
+    /** Minutes without input before the screensaver appears. */
+    val saverAfterMin: Int = 5,
+    /** Biometric / device-credential gate on open and after backgrounding. */
+    val appLock: Boolean = false,
+    /** Minutes in background before the app re-locks (0 = immediately on return). */
+    val lockAfterMin: Int = 1,
+    /** FLAG_SECURE: keep the app out of screenshots and the recents preview. */
+    val secureWindow: Boolean = false,
 ) {
     val prompt: String get() = "$username@$hostname"
     val hasQuietHours: Boolean get() = quietStartMin != quietEndMin
@@ -187,6 +201,13 @@ class UserPrefs(private val context: Context) {
         val TODAY_SORT = stringPreferencesKey("today_sort")
         val COMPACT_LIVE = booleanPreferencesKey("compact_live_update")
         val TODAY_SECTIONS = booleanPreferencesKey("today_sections")
+        val AMBIENT = stringPreferencesKey("ambient")
+        val AMBIENT_VOL = intPreferencesKey("ambient_vol")
+        val SAVER = stringPreferencesKey("saver")
+        val SAVER_AFTER = intPreferencesKey("saver_after_min")
+        val APP_LOCK = booleanPreferencesKey("app_lock")
+        val LOCK_AFTER = intPreferencesKey("lock_after_min")
+        val SECURE_WINDOW = booleanPreferencesKey("secure_window")
     }
 
     val settings: Flow<Settings> = context.dataStore.data.map { p ->
@@ -248,6 +269,13 @@ class UserPrefs(private val context: Context) {
             compactLiveUpdate = p[Keys.COMPACT_LIVE] ?: true,
             todaySections = p[Keys.TODAY_SECTIONS] ?: false,
             todaySort = p[Keys.TODAY_SORT] ?: "",
+            ambientSound = p[Keys.AMBIENT] ?: "off",
+            ambientVolume = p[Keys.AMBIENT_VOL] ?: 60,
+            saverPattern = p[Keys.SAVER] ?: "off",
+            saverAfterMin = p[Keys.SAVER_AFTER] ?: 5,
+            appLock = p[Keys.APP_LOCK] ?: false,
+            lockAfterMin = p[Keys.LOCK_AFTER] ?: 1,
+            secureWindow = p[Keys.SECURE_WINDOW] ?: false,
         )
     }
 
@@ -317,4 +345,21 @@ class UserPrefs(private val context: Context) {
 
     /** Today ordering: "" (routine order) or "strength" (weakest first inside each block). */
     suspend fun setTodaySort(v: String) = context.dataStore.edit { it[Keys.TODAY_SORT] = v }
+
+    suspend fun setAmbient(mode: String, volume: Int? = null) = context.dataStore.edit {
+        it[Keys.AMBIENT] = mode
+        if (volume != null) it[Keys.AMBIENT_VOL] = volume.coerceIn(0, 100)
+    }
+    suspend fun setAmbientVolume(v: Int) = context.dataStore.edit { it[Keys.AMBIENT_VOL] = v.coerceIn(0, 100) }
+    suspend fun setSaver(pattern: String, afterMin: Int? = null) = context.dataStore.edit {
+        it[Keys.SAVER] = pattern
+        if (afterMin != null) it[Keys.SAVER_AFTER] = afterMin
+    }
+    suspend fun setSaverAfter(minutes: Int) = context.dataStore.edit { it[Keys.SAVER_AFTER] = minutes }
+    suspend fun setAppLock(on: Boolean, afterMin: Int? = null) = context.dataStore.edit {
+        it[Keys.APP_LOCK] = on
+        if (afterMin != null) it[Keys.LOCK_AFTER] = afterMin
+    }
+    suspend fun setLockAfter(minutes: Int) = context.dataStore.edit { it[Keys.LOCK_AFTER] = minutes }
+    suspend fun setSecureWindow(on: Boolean) = context.dataStore.edit { it[Keys.SECURE_WINDOW] = on }
 }

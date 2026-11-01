@@ -82,6 +82,8 @@ class PomodoroService : Service() {
             PersonalTerminalApp.get(this@PomodoroService).prefs.settings.collect {
                 alertsEnabled = it.notifications.timerAlerts
                 if (compact != it.compactLiveUpdate) { compact = it.compactLiveUpdate; if (_state.value.phase != Phase.IDLE) updateNotification() }
+                AmbientAudio.setPattern(it.ambientSound)
+                AmbientAudio.setVolume(it.ambientVolume)
             }
         }
     }
@@ -92,6 +94,7 @@ class PomodoroService : Service() {
             // re-derive the phase from the persisted end time and repaint the notification.
             if (_state.value.phase == Phase.IDLE) restoreSession()
             resync()
+            syncAmbient()
             return START_STICKY
         }
         when (intent.action) {
@@ -114,6 +117,7 @@ class PomodoroService : Service() {
             ACTION_SKIP -> skip()
             ACTION_STOP -> stopSession(creditPartial = true)
         }
+        syncAmbient()
         return START_STICKY
     }
 
@@ -126,6 +130,7 @@ class PomodoroService : Service() {
         startTicker()
         persistSession()
         FocusDnd.enter(this)
+        syncAmbient()
     }
 
     private data class Config(val focus: Int, val brk: Int, val longBrk: Int)
@@ -152,6 +157,7 @@ class PomodoroService : Service() {
         startTicker()
         persistSession()
         if (phase == Phase.FOCUS) FocusDnd.enter(this) else FocusDnd.exit(this)
+        syncAmbient()
     }
 
     // ------------------------------------------------------------------ resilience
@@ -242,6 +248,7 @@ class PomodoroService : Service() {
         )
         goForeground()
         if (running) { startTicker(); scheduleHeartbeat() }
+        syncAmbient()
     }
 
     /**
@@ -328,11 +335,12 @@ class PomodoroService : Service() {
         if (!s.running) return
         holdWakeLock(false)
         cancelHeartbeat()
-        if (s.isStopwatch) { _state.value = s.copy(running = false); updateNotification(); persistSession(); return }
+        if (s.isStopwatch) { _state.value = s.copy(running = false); updateNotification(); persistSession(); syncAmbient(); return }
         val remaining = ((s.endsAtMs - System.currentTimeMillis() + 999) / 1000).toInt().coerceIn(0, s.totalSeconds)
         _state.value = s.copy(running = false, remainingSeconds = remaining)
         updateNotification()
         persistSession()
+        syncAmbient()
     }
 
     private fun resume() {
@@ -348,6 +356,7 @@ class PomodoroService : Service() {
         scheduleHeartbeat()
         updateNotification()
         persistSession()
+        syncAmbient()
     }
 
     private fun skip() {
@@ -363,6 +372,17 @@ class PomodoroService : Service() {
         }
     }
 
+    /** Ambient sound follows the timer: play while focused and running, pause with it, else silence. */
+    private fun syncAmbient() {
+        val s = _state.value
+        val focusPhase = s.phase == Phase.FOCUS || s.isStopwatch
+        when {
+            !focusPhase -> AmbientAudio.focusOff()
+            s.running -> AmbientAudio.focusOn()
+            else -> AmbientAudio.pause()
+        }
+    }
+
     private fun stopSession(creditPartial: Boolean) {
         val s = _state.value
         if (creditPartial && (s.phase == Phase.FOCUS || s.isStopwatch)) recordSession(s, s.focusedSeconds / 60, completed = s.isStopwatch)
@@ -372,6 +392,7 @@ class PomodoroService : Service() {
         _state.value = TimerState()
         persistSession()
         FocusDnd.exit(this)
+        syncAmbient()
         NotificationManagerCompat.from(this).cancel(ALERT_NOTIF_ID)
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()

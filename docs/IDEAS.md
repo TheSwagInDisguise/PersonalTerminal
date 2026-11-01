@@ -59,16 +59,16 @@ app. Generic mechanics only; nothing that copies another app's names, copy or br
 
 | # | Idea | Why it earns its place | Effort |
 |---|------|------------------------|--------|
-| B12 | **Ambient sounds** (roadmap 2.4) – procedurally generated brown / pink noise, rain and mechanical-keyboard clicks (no audio assets), independent volume, stops on the break. | The last open focus-timer item; the sound becomes the cue for focus | M |
-| B13 | **ASCII garden** – every focus session grows a plant on a `garden` screen (box/Braille art), idle days wilt it, a year becomes a field. | Forest-style growth without a cartoon; pure delight | M |
-| B14 | **Screensaver + keyboard TUI** – matrix rain / game of life / starfield after idle (opt-in, for a docked phone or tablet), `j`/`k`/`space` on hardware keyboards. | Cheap character for the terminal metaphor | S/M |
-| B15 | **App lock** – biometric / PIN on launch and after N minutes, optional secure-window flag so valuations never show in recents. | Watch values and wrist shots are personal | S |
+| B12 ✅ | **Ambient sounds** (roadmap 2.4) – procedurally generated brown / pink noise, rain and mechanical-keyboard clicks (no audio assets), independent volume, stops on the break. | The last open focus-timer item; the sound becomes the cue for focus | M · shipped 0.3.8 |
+| B13 ✅ | **ASCII garden** – every focus session grows a plant on a `garden` screen (box/Braille art), idle days wilt it, a year becomes a field. | Forest-style growth without a cartoon; pure delight | M · shipped 0.3.8 |
+| B14 ✅ | **Screensaver + keyboard TUI** – matrix rain / game of life / starfield after idle (opt-in, for a docked phone or tablet), `j`/`k`/`space` on hardware keyboards. | Cheap character for the terminal metaphor | S/M · shipped 0.3.8 |
+| B15 ✅ | **App lock** – biometric / PIN on launch and after N minutes, optional secure-window flag so valuations never show in recents. | Watch values and wrist shots are personal | S · shipped 0.3.8 |
 | B16 | **`sshd` – terminal over LAN** – the app serves a token-protected text UI on Wi-Fi (`http://phone:7331`) with the same command shell (`done`, `wear`, `stats`) and a read-only heatmap; a keyboard on a laptop drives the phone. | The honest answer to "web app + sync" for a one-person, one-phone setup | L |
 | B17 | **App blocking during focus** – usage-stats + overlay that bounces chosen apps while a session runs. | Real focus protection – but hard to verify headlessly and fragile across OEMs | L |
 
 Suggested bundles: **0.3.5** ✅ = B1 + B2 + B4 + B5 + B6 (habit loop, shipped) · **0.3.6** ✅ = B7 + B8 + B9 + B11 (watches, shipped) ·
 **0.3.7** ✅ = upgrade gate (pinned release key, `UpgradeTest` / `LegacyBackupTest` / `ContractTest`, advisory install-over-install job) ·
-**0.3.8** = B12 + B13 + B14 + B15 (focus & feel) · **0.4.0** = B3 + B10, then B16 on its own.
+**0.3.8** ✅ = B12 + B13 + B14 + B15 (focus & feel, shipped) · **0.4.0** = B3 + B10, then B16 on its own.
 Every version from here on is released one bundle at a time and has to pass the gate before it is published (see README › Upgrade gate).
 
 ## Polish audit (0.3.2)

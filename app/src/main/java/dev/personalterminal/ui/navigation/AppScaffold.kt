@@ -162,6 +162,7 @@ fun AppScaffold(app: PersonalTerminalApp, settings: Settings, startRoute: String
                 composable(Routes.YEAR_REVIEW) { dev.personalterminal.ui.insights.YearReviewScreen(app, nav) }
                 composable(Routes.IMPORT) { ImportScreen(app, nav) }
                 composable(Routes.JOURNAL) { JournalScreen(app, nav) }
+                composable(Routes.GARDEN) { dev.personalterminal.ui.garden.GardenScreen(app, nav) }
                 composable(Routes.HABIT_DETAIL, arguments = listOf(navArgument("id") { type = NavType.LongType })) {
                     HabitDetailScreen(app, nav, it.arguments?.getLong("id") ?: 0L)
                 }

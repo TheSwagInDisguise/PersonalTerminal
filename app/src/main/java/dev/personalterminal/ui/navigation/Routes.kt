@@ -28,6 +28,7 @@ object Routes {
     const val SKIP_RULES = "habit/insurance"
     const val IMPORT = "import"
     const val JOURNAL = "journal"
+    const val GARDEN = "garden"
 
     fun habitEdit(id: Long = 0, routineId: Long? = null, name: String? = null) =
         "habit/edit?id=$id&routineId=${routineId ?: -1}" + (name?.let { "&name=${android.net.Uri.encode(it)}" } ?: "")

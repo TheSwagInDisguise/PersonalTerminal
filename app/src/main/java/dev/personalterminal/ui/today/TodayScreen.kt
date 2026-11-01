@@ -19,9 +19,21 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.border
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -101,8 +113,76 @@ fun TodayScreen(app: PersonalTerminalApp, nav: NavHostController) {
         }
     }
 
+    // ---- keyboard TUI (0.3.8): j / k move the selection, space / enter ticks the row ----
+    var selHabitId by remember { mutableStateOf<Long?>(null) }
+    val focusRequester = remember { FocusRequester() }
+    val listState = rememberLazyListState()
+    var fieldFocused by remember { mutableStateOf(false) }
+    var refocusRoot by remember { mutableStateOf(false) }
+
+    data class Block(val key: String, val icon: String, val name: String, val color: androidx.compose.ui.graphics.Color, val habits: List<HabitStatus>, val current: Boolean = false)
+    val nowSection = TimeOfDay.at(AppClock.now().let { it.hour * 60 + it.minute })
+    val blocks: List<Block> = if (s == null) emptyList() else if (settings.todaySections) {
+        val bySection = s.all.groupBy { it.habit.section }
+        TimeOfDay.entries.mapNotNull { t -> bySection[t]?.let { Block("tod-${t.name}", t.glyph, t.label, if (t == nowSection && isToday) p.yellow else p.purple, it, current = t == nowSection && isToday) } }
+    } else s.groups.map { g -> Block("routine-${g.routine?.id ?: -1}", g.routine?.icon ?: ">", g.name, p.purple, g.habits) }
+    val byId = s?.all?.associate { it.habit.id to it.habit } ?: emptyMap()
+
+    fun dueOf(group: Block): List<HabitStatus> {
+        val dueRaw = group.habits.filter { it.isDueToday }
+        val base = if (settings.todaySort == "strength") (s?.weakestFirst(dueRaw) ?: dueRaw) else dueRaw
+        return base.sortedBy { Stacks.depth(it.habit, byId) }
+    }
+
+    // Flat ordered view of the rows the list renders — drives selection and scrolling.
+    val flatDue: List<HabitStatus> = blocks.flatMap { dueOf(it) }
+    val indexByHabit: Map<Long, Int> = buildMap {
+        var idx = 4 // prompt · day nav · command line · summary
+        blocks.forEach { group ->
+            val due = dueOf(group)
+            val offDay = group.habits.filter { !it.isDueToday }
+            if (due.isEmpty() && offDay.isEmpty()) return@forEach
+            idx++ // group header
+            due.forEach { put(it.habit.id, idx++) }
+            if (offDay.isNotEmpty()) idx++
+        }
+    }
+    fun moveSelection(delta: Int) {
+        if (flatDue.isEmpty()) { selHabitId = null; return }
+        val cur = selHabitId?.let { id -> flatDue.indexOfFirst { it.habit.id == id } } ?: -1
+        val next = (if (cur < 0) (if (delta > 0) -1 else 0) else cur + delta).coerceIn(0, flatDue.lastIndex)
+        selHabitId = flatDue[next].habit.id
+        indexByHabit[flatDue[next].habit.id]?.let { idx -> scope.launch { listState.animateScrollToItem(idx) } }
+    }
+    fun toggleSelection() {
+        val id = selHabitId ?: return
+        if (flatDue.none { it.habit.id == id }) return
+        scope.launch { app.habits.toggle(id, date) }
+    }
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+    LaunchedEffect(refocusRoot) {
+        if (refocusRoot) { refocusRoot = false; focusRequester.requestFocus() }
+    }
+
+    Box(
+        Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .focusRequester(focusRequester)
+            .focusable()
+            .onKeyEvent { ev ->
+                when {
+                    ev.type != KeyEventType.KeyDown || fieldFocused -> false
+                    ev.key == Key.J || ev.key == Key.DirectionDown -> { moveSelection(1); true }
+                    ev.key == Key.K || ev.key == Key.DirectionUp -> { moveSelection(-1); true }
+                    (ev.key == Key.Spacebar || ev.key == Key.Enter) && selHabitId != null -> { toggleSelection(); true }
+                    else -> false
+                }
+            },
+    ) {
     LazyColumn(
-        Modifier.fillMaxSize().statusBarsPadding(),
+        Modifier.fillMaxSize(),
+        state = listState,
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
@@ -125,7 +205,11 @@ fun TodayScreen(app: PersonalTerminalApp, nav: NavHostController) {
                     Text("$ ", color = p.green, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
                     TermTextField(
                         value = command, onValueChange = { command = it }, placeholder = "done stretch · add 2 water · timer 25 · wear speedy · help",
-                        singleLine = true, imeAction = ImeAction.Go, onImeAction = { runCommand() }, modifier = Modifier.weight(1f),
+                        singleLine = true, imeAction = ImeAction.Go, onImeAction = { runCommand() },
+                        modifier = Modifier.weight(1f).onFocusChanged {
+                            fieldFocused = it.isFocused
+                            if (!it.isFocused) refocusRoot = true
+                        },
                     )
                     if (command.isNotBlank()) Text(" ↵", color = p.cyan, style = MaterialTheme.typography.titleMedium, modifier = Modifier.clickable { runCommand() }.padding(4.dp))
                 }
@@ -153,19 +237,9 @@ fun TodayScreen(app: PersonalTerminalApp, nav: NavHostController) {
             }
         }
 
-        // Either one block per routine (default) or one per time of day (settings › today sections).
-        data class Block(val key: String, val icon: String, val name: String, val color: androidx.compose.ui.graphics.Color, val habits: List<HabitStatus>, val current: Boolean = false)
-        val nowSection = TimeOfDay.at(AppClock.now().let { it.hour * 60 + it.minute })
-        val blocks: List<Block> = if (settings.todaySections) {
-            val bySection = s.all.groupBy { it.habit.section }
-            TimeOfDay.entries.mapNotNull { t -> bySection[t]?.let { Block("tod-${t.name}", t.glyph, t.label, if (t == nowSection && isToday) p.yellow else p.purple, it, current = t == nowSection && isToday) } }
-        } else s.groups.map { g -> Block("routine-${g.routine?.id ?: -1}", g.routine?.icon ?: ">", g.name, p.purple, g.habits) }
-
-        val byId = s.all.associate { it.habit.id to it.habit }
+        // Blocks / due order / index map were computed above the list (keyboard TUI needs them).
         blocks.forEach { group ->
-            val dueRaw = group.habits.filter { it.isDueToday }
-            // stack order (anchors first), then optionally weakest first
-            val dueHabits = (if (settings.todaySort == "strength") s.weakestFirst(dueRaw) else dueRaw).sortedBy { Stacks.depth(it.habit, byId) }
+            val dueHabits = dueOf(group)
             val offDay = group.habits.filter { !it.isDueToday }
             if (dueHabits.isEmpty() && offDay.isEmpty()) return@forEach
             item(key = group.key) {
@@ -180,6 +254,7 @@ fun TodayScreen(app: PersonalTerminalApp, nav: NavHostController) {
             items(dueHabits, key = { "h-${it.habit.id}" }) { hs ->
                 HabitRow(
                     hs = hs,
+                    selected = hs.habit.id == selHabitId,
                     onToggle = { scope.launch { app.habits.toggle(hs.habit.id, date) } },
                     onToggleItem = { i -> scope.launch { app.habits.toggleItem(hs.habit.id, i, date) } },
                     onIncrement = { scope.launch { app.habits.addValue(hs.habit.id, 1, date) } },
@@ -278,6 +353,7 @@ fun TodayScreen(app: PersonalTerminalApp, nav: NavHostController) {
             Spacer(Modifier.height(24.dp))
         }
     }
+    }
 }
 
 @Composable
@@ -307,6 +383,8 @@ private fun SummaryPanel(s: DaySummary, onShieldInfo: () -> Unit) {
 @Composable
 fun HabitRow(
     hs: HabitStatus,
+    /** Hardware-keyboard selection highlight (j/k on Today). */
+    selected: Boolean = false,
     onToggle: () -> Unit,
     onIncrement: () -> Unit,
     onDecrement: () -> Unit,
@@ -336,7 +414,8 @@ fun HabitRow(
     Column(
         Modifier
             .fillMaxWidth()
-            .background(if (hs.completed || hs.skipped) p.bgAlt.copy(alpha = 0.5f) else p.bgAlt, RoundedCornerShape(6.dp))
+            .background(if (selected) p.bgHighlight else if (hs.completed || hs.skipped) p.bgAlt.copy(alpha = 0.5f) else p.bgAlt, RoundedCornerShape(6.dp))
+            .then(if (selected) Modifier.border(1.5.dp, p.green, RoundedCornerShape(6.dp)) else Modifier)
             .then(if (waiting) Modifier.alpha(0.55f) else Modifier)
             .combinedClickable(onClick = { if (h.type == HabitType.CHECKBOX && !h.negative && !hs.skipped) onToggle() else onExpand() }, onLongClick = onExpand)
             .padding(horizontal = 12.dp, vertical = 10.dp),

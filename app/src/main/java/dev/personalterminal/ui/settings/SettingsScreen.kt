@@ -287,6 +287,102 @@ fun SettingsScreen(
             }
         }
 
+        // ---------------- focus ambience (0.3.8) ----------------
+        TerminalPanel(title = "focus ambience") {
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text("sound", color = p.fgDim)
+                Spacer(Modifier.width(10.dp))
+                dev.personalterminal.timer.AmbientAudio.PATTERNS.forEach { m ->
+                    val sel = settings.ambientSound == m
+                    Text(
+                        (if (sel) "[✓ " else "[  ") + m + "]",
+                        color = if (sel) p.green else p.fgDim,
+                        style = MaterialTheme.typography.labelMedium,
+                        modifier = Modifier
+                            .clickable { scope.launch { app.prefs.setAmbient(m); dev.personalterminal.timer.AmbientAudio.setPattern(m) } }
+                            .padding(horizontal = 4.dp),
+                    )
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text("volume", color = p.fgDim)
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    TermButton("−", onClick = {
+                        val v = (settings.ambientVolume - 10).coerceAtLeast(0)
+                        scope.launch { app.prefs.setAmbientVolume(v) }; dev.personalterminal.timer.AmbientAudio.setVolume(v)
+                    })
+                    Text("  ${settings.ambientVolume}%  ", color = p.fg, style = MaterialTheme.typography.bodyMedium)
+                    TermButton("+", onClick = {
+                        val v = (settings.ambientVolume + 10).coerceAtMost(100)
+                        scope.launch { app.prefs.setAmbientVolume(v) }; dev.personalterminal.timer.AmbientAudio.setVolume(v)
+                    })
+                }
+            }
+            Comment("procedurally generated — no audio assets · plays during focus, stops for breaks")
+        }
+
+        // ---------------- screensaver (0.3.8) ----------------
+        TerminalPanel(title = "screensaver") {
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text("pattern", color = p.fgDim)
+                Spacer(Modifier.width(10.dp))
+                listOf("off", "matrix", "life", "stars").forEach { m ->
+                    val sel = settings.saverPattern == m
+                    Text(
+                        (if (sel) "[✓ " else "[  ") + m + "]",
+                        color = if (sel) p.green else p.fgDim,
+                        style = MaterialTheme.typography.labelMedium,
+                        modifier = Modifier.clickable { scope.launch { app.prefs.setSaver(m) } }.padding(horizontal = 4.dp),
+                    )
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text("after", color = p.fgDim)
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    listOf(2, 5, 10, 15).forEach { m ->
+                        val sel = settings.saverAfterMin == m
+                        Text(
+                            " $m" + if (sel) "✓" else " ",
+                            color = if (sel) p.green else p.fgDim,
+                            style = MaterialTheme.typography.labelMedium,
+                            modifier = Modifier.clickable { scope.launch { app.prefs.setSaverAfter(m) } }.padding(horizontal = 6.dp),
+                        )
+                    }
+                    Text(" min idle", color = p.fgDim, style = MaterialTheme.typography.labelMedium)
+                }
+            }
+            Comment("tap or any key wakes it · matrix rain, game of life, starfield")
+        }
+
+        // ---------------- privacy (0.3.8) ----------------
+        TerminalPanel(title = "privacy", titleColor = p.yellow) {
+            ToggleLine("app lock: biometric / PIN on open and after backgrounding", settings.appLock) { on ->
+                scope.launch { app.prefs.setAppLock(on) }
+            }
+            if (settings.appLock) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Text("lock after", color = p.fgDim)
+                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        listOf(0, 1, 5, 15).forEach { m ->
+                            val sel = settings.lockAfterMin == m
+                            Text(
+                                (if (m == 0) " [now]" else " ${m}m") + if (sel) "✓" else "",
+                                color = if (sel) p.green else p.fgDim,
+                                style = MaterialTheme.typography.labelMedium,
+                                modifier = Modifier.clickable { scope.launch { app.prefs.setLockAfter(m) } }.padding(horizontal = 4.dp),
+                            )
+                        }
+                    }
+                }
+            }
+            ToggleLine("secure window: hide the app in screenshots & recents", settings.secureWindow) { on ->
+                scope.launch { app.prefs.setSecureWindow(on) }
+            }
+            Comment("the lock needs a screen lock (PIN / pattern / biometric) on the device · secure window keeps valuations out of the recents preview")
+        }
+
         // ---------------- health connect ----------------
         TerminalPanel(title = "health connect", titleColor = p.green) {
             val avail = dev.personalterminal.health.HealthSync.isAvailable(ctx)
