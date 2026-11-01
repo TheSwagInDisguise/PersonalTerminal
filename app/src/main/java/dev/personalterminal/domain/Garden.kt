@@ -118,7 +118,7 @@ object Garden {
         }
     }
 
-    private fun grade(minutes: Int): Char = when {
+    private fun grade(minutes: Int): String = when {
         minutes <= 0 -> "·"
         minutes < 15 -> "."
         minutes < 30 -> ":"

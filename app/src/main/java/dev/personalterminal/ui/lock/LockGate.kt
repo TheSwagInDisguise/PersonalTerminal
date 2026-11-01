@@ -71,7 +71,7 @@ fun LockGate(onUnlock: () -> Unit) {
         )
         val info = BiometricPrompt.PromptInfo.Builder()
             .setTitle("personal terminal")
-            .subtitle("terminal locked")
+            .setSubtitle("terminal locked")
             .setAllowedAuthenticators(
                 BiometricManager.Authenticators.DEVICE_CREDENTIAL or BiometricManager.Authenticators.BIOMETRIC_WEAK
             )

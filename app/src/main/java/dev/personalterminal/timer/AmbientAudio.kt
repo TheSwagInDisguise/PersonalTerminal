@@ -114,7 +114,7 @@ object AmbientAudio {
         val mode = pattern
         t.play()
         job = scope.launch {
-            val gen = when (mode) {
+            val gen: Gen? = when (mode) {
                 RAIN -> RainGen()
                 BROWN -> BrownGen()
                 KEYS -> KeysGen()
@@ -142,8 +142,11 @@ object AmbientAudio {
 
     // ------------------------------------------------------------------ generators
 
+    /** One PCM16 mono generator at [SAMPLE_RATE]. */
+    private interface Gen { fun fill(out: ShortArray) }
+
     /** Deep low-frequency rumble: integrated, leaked and low-passed white noise. */
-    private class BrownGen {
+    private class BrownGen : Gen {
         private var y = 0.0
         private var lp = 0.0
         private val r = java.util.Random()
@@ -160,7 +163,7 @@ object AmbientAudio {
     }
 
     /** Soft hiss body plus sparse decaying droplet pings. */
-    private class RainGen {
+    private class RainGen : Gen {
         private var lp = 0.0
         private var env = 0.0
         private var phase = 0.0
@@ -187,7 +190,7 @@ object AmbientAudio {
     }
 
     /** Mechanical-keyboard texture: short bright clicks, sometimes doubled, with typing pauses. */
-    private class KeysGen {
+    private class KeysGen : Gen {
         private var env = 0.0
         private var phase = 0.0
         private var freq = 900.0

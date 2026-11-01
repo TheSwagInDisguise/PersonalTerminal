@@ -31,10 +31,9 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import kotlin.math.abs
+import androidx.compose.runtime.withFrameNanos
 import kotlin.random.Random
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.withFrameNanos
 
 private val LIME = Color(0xFFC5FF4A)
 private val SAVER_CHARS = "01ABCDEF$#*+=<>/\\"
