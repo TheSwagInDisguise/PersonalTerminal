@@ -27,7 +27,7 @@ class MigrationTest {
     val helper = MigrationTestHelper(InstrumentationRegistry.getInstrumentation(), AppDatabase::class.java, emptyList(), FrameworkSQLiteOpenHelperFactory())
 
     @Test
-    fun `1 to 7 keeps data and matches the exported schema`() {
+    fun `1 to 8 keeps data and matches the exported schema`() {
         helper.createDatabase(dbName, 1).apply {
             execSQL("INSERT INTO routines (id, name, icon, position, createdAt) VALUES (1, 'morning', '☼', 0, 1)")
             execSQL("INSERT INTO habits (id, name, type, target, unit, schedule, daysMask, timesPerWeek, routineId, color, position, archived, createdAt, notes) VALUES (1, 'stretch', 'CHECKBOX', 1, '', 'DAILY', 127, 3, 1, 'green', 0, 0, 1, '')")
@@ -36,8 +36,8 @@ class MigrationTest {
             execSQL("INSERT INTO wear_logs (id, watchId, day, photoPath, note, createdAt) VALUES (1, 1, 20000, NULL, '', 1)")
             close()
         }
-        // validateDroppedTables = true → any difference to 7.json fails the test
-        val db = helper.runMigrationsAndValidate(dbName, 7, true, AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7)
+        // validateDroppedTables = true → any difference to 8.json fails the test
+        val db = helper.runMigrationsAndValidate(dbName, 8, true, AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8)
         db.query("SELECT negative, reminderMinutes, healthMetric, checkIn FROM habits WHERE id = 1").use { c ->
             assertTrue(c.moveToFirst()); assertEquals(0, c.getInt(0)); assertEquals(-1, c.getInt(1)); assertEquals("", c.getString(2)); assertEquals(0, c.getInt(3))
         }
@@ -47,6 +47,11 @@ class MigrationTest {
             assertTrue(c.moveToFirst()); assertEquals(0, c.getInt(0)); assertEquals(0, c.getInt(1)); assertEquals(0, c.getInt(2)); assertEquals(0L, c.getLong(3)); assertEquals(0L, c.getLong(4)); assertEquals(0, c.getInt(5)); assertEquals("", c.getString(6))
         }
         db.query("SELECT COUNT(*) FROM skip_rules").use { c -> assertTrue(c.moveToFirst()); assertEquals(0, c.getInt(0)) }
+        db.query("SELECT chStart, chEnd, chStake, chResolved, monthDay FROM habits WHERE id = 1").use { c ->
+            assertTrue(c.moveToFirst()); assertEquals(0L, c.getLong(0)); assertEquals(0L, c.getLong(1)); assertEquals(0, c.getInt(2)); assertEquals(0, c.getInt(3)); assertEquals(0, c.getInt(4))
+        }
+        db.query("SELECT COUNT(*) FROM watch_photos").use { c -> assertTrue(c.moveToFirst()); assertEquals(0, c.getInt(0)) }
+        db.query("SELECT COUNT(*) FROM watch_documents").use { c -> assertTrue(c.moveToFirst()); assertEquals(0, c.getInt(0)) }
         db.query("SELECT COUNT(*) FROM strap_swaps").use { c -> assertTrue(c.moveToFirst()); assertEquals(0, c.getInt(0)) } // no straps → nothing seeded
         db.query("SELECT COUNT(*) FROM sleep_logs").use { c -> assertTrue(c.moveToFirst()); assertEquals(0, c.getInt(0)) }
         db.query("SELECT serviceIntervalMonths, currency, purchasePrice FROM watches").use { c -> assertTrue(c.moveToFirst()); assertEquals(0, c.getInt(0)); assertEquals("", c.getString(1)); assertTrue(c.isNull(2)) }
@@ -58,7 +63,7 @@ class MigrationTest {
 
         // And Room itself opens the migrated file happily with the real DAOs.
         val room = Room.databaseBuilder(ApplicationProvider.getApplicationContext(), AppDatabase::class.java, dbName)
-            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7).allowMainThreadQueries().build()
+            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8).allowMainThreadQueries().build()
         runBlocking {
             assertEquals(1, room.habitDao().getAll().size)
             room.habitDao().update(room.habitDao().getById(1)!!.copy(checkIn = true, type = HabitType.CHECKLIST, checklist = "shoes\ntowel", timeOfDay = "MORNING"))
