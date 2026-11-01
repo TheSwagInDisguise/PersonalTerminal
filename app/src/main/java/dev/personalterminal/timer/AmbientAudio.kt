@@ -150,7 +150,7 @@ object AmbientAudio {
         private var y = 0.0
         private var lp = 0.0
         private val r = java.util.Random()
-        fun fill(out: ShortArray) {
+        override fun fill(out: ShortArray) {
             for (i in out.indices) {
                 val w = r.nextDouble() * 2 - 1
                 y = (y + 0.02 * w) * 0.998
@@ -169,7 +169,7 @@ object AmbientAudio {
         private var phase = 0.0
         private var freq = 2400.0
         private val r = java.util.Random()
-        fun fill(out: ShortArray) {
+        override fun fill(out: ShortArray) {
             for (i in out.indices) {
                 val w = r.nextDouble() * 2 - 1
                 lp += 0.22 * (w - lp)
@@ -197,7 +197,7 @@ object AmbientAudio {
         private var noise = 0.0
         private var nextIn = 0
         private val r = java.util.Random()
-        fun fill(out: ShortArray) {
+        override fun fill(out: ShortArray) {
             for (i in out.indices) {
                 if (env <= 0.002) {
                     nextIn--
