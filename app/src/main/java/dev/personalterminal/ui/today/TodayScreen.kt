@@ -226,6 +226,30 @@ fun TodayScreen(app: PersonalTerminalApp, nav: NavHostController) {
         }
         item { SummaryPanel(s, onShieldInfo = { nav.navigate(Routes.PROFILE) }) }
 
+        // Active challenges (0.4.0): one card, progress bars, tap → detail.
+        val activeChallenges = s.all.filter { dev.personalterminal.domain.Challenges.isActive(it.habit, date) }
+        if (activeChallenges.isNotEmpty()) {
+            item(key = "challenges") {
+                TerminalPanel(title = "challenges", titleColor = p.yellow) {
+                    activeChallenges.forEach { hs ->
+                        val c = dev.personalterminal.domain.Challenges
+                        Text(
+                            (if (hs.completed) "[✓] " else "[ ] ") +
+                                hs.habit.name + "  " + (c.label(hs.habit, date) ?: "") + "  " + c.progressBar(hs.habit, date) +
+                                if (hs.habit.chStake > 0) "  ⛨${hs.habit.chStake}" else "",
+                            color = if (hs.completed) p.green else p.fg,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { nav.navigate(Routes.habitDetail(hs.habit.id)) }
+                                .padding(vertical = 3.dp),
+                        )
+                    }
+                    Comment("window closes → certificate at the prompt · `challenge <habit>` for status")
+                }
+            }
+        }
+
         if (s.all.isEmpty()) {
             item {
                 TerminalPanel(title = "empty") {
@@ -438,6 +462,9 @@ fun HabitRow(
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                     if (hs.streak.current > 0) Text("⚡${hs.streak.current}", color = p.orange, style = MaterialTheme.typography.labelSmall)
                     if (hs.streak.shieldedDays > 0) Text("⛨${hs.streak.shieldedDays}", color = p.cyan, style = MaterialTheme.typography.labelSmall)
+                    dev.personalterminal.domain.Challenges.label(h, AppClock.today())?.let { lbl ->
+                        Text(lbl + if (h.chStake > 0) " ⛨${h.chStake}" else "", color = p.yellow, style = MaterialTheme.typography.labelSmall)
+                    }
                     val outlook = if (h.schedule == ScheduleType.WEEKLY) Schedule.weekOutlook(h, hs.weekCount, AppClock.today()) else null
                     val sched = when {
                         hs.skipped -> "skipped" + (hs.log?.skipReason?.takeIf { it.isNotBlank() }?.let { ": $it" } ?: "")

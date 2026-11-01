@@ -185,8 +185,9 @@ fun WatchesScreen(app: PersonalTerminalApp, nav: NavHostController) {
         item {
             Spacer(Modifier.height(4.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TermButton("timeline", onClick = { nav.navigate(Routes.TIMELINE) }, color = p.fgDim, modifier = Modifier.weight(1f))
-                TermButton("wishlist · sold · uptime", onClick = { nav.navigate(Routes.WISHLIST) }, color = p.fgDim, modifier = Modifier.weight(1.6f))
+            TermButton("timeline", onClick = { nav.navigate(Routes.TIMELINE) }, color = p.fgDim, modifier = Modifier.weight(1f))
+            TermButton("sheet", onClick = { nav.navigate(Routes.CONTACT_SHEET) }, color = p.fgDim, modifier = Modifier.weight(1f))
+            TermButton("wishlist · sold · uptime", onClick = { nav.navigate(Routes.WISHLIST) }, color = p.fgDim, modifier = Modifier.weight(1.6f))
             }
             Spacer(Modifier.height(24.dp))
         }

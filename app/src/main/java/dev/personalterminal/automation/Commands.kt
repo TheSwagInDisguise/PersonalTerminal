@@ -241,6 +241,7 @@ object Commands {
             "skip" -> habit(app, rest)?.let { h -> app.habits.skip(h.id, comment, date); ok("[»] ${h.name} skipped" + if (comment.isNotBlank()) " ($comment)" else "") } ?: noHabit(rest)
             "unskip" -> habit(app, rest)?.let { h -> app.habits.unskip(h.id, date); ok("${h.name} un-skipped") } ?: noHabit(rest)
             "vault" -> ok("watch vault", Routes.WATCH_BOX)
+            "insure", "report" -> ok("collection report", Routes.COLLECTION_REPORT)
             "away", "insurance" -> {
                 if (rest.isBlank() || rest.trim() == "list" || rest.trim() == "ls") {
                     val rules = app.habits.skipRules()
@@ -310,6 +311,8 @@ object Commands {
                     "next", "suggest" -> ok(app.watches.suggestNext()?.let { "watch next → ${it.first.displayName}: ${it.second}" } ?: "add a watch first", Routes.WATCHES)
                     "vault", "box", "grid" -> ok("watch vault", Routes.WATCH_BOX)
                     "stats" -> ok("watch stats", Routes.WATCH_STATS)
+                    "insure", "report", "documents" -> ok("collection report", Routes.COLLECTION_REPORT)
+                    "sheet", "contact" -> ok("contact sheet", Routes.CONTACT_SHEET)
                     "", "ls" -> ok("open watches", Routes.WATCHES)
                     "challenges", "challenge", "rotation" -> {
                         val list = app.watches.challenges(date)
@@ -676,7 +679,7 @@ object Commands {
         |watch next · vault    shield <habit>
         |watch sold|repair|back <w>   uptime
         |wish <brand model> 4500 · save 200 <w>
-        |watch buy <w> · watch challenges
+        |watch buy <w> · watch report
         |yesterday <habit>     (late log, till 12:00)
         |pause <habit> 2w      resume <habit>
         |sleep 23:30 · wake 06:45 · slept 23:30 06:45

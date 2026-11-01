@@ -140,6 +140,7 @@ fun WatchStatsScreen(app: PersonalTerminalApp, nav: NavHostController) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TermButton("wear log .csv", color = p.yellow, onClick = { export("wear-log.csv", { app.watches.wearLogCsv() }, share = false) }, modifier = Modifier.weight(1f))
                 TermButton("collection .csv", color = p.yellow, onClick = { export("collection.csv", { app.watches.collectionCsv() }, share = false) }, modifier = Modifier.weight(1f))
+                TermButton("insurance .pdf", color = p.yellow, onClick = { nav.navigate(Routes.COLLECTION_REPORT) }, modifier = Modifier.weight(1f))
             }
             Spacer(Modifier.height(4.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

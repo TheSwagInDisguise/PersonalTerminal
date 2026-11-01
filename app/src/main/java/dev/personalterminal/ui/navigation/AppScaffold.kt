@@ -154,6 +154,8 @@ fun AppScaffold(app: PersonalTerminalApp, settings: Settings, startRoute: String
                 composable(Routes.SESSIONS) { SessionsScreen(app, nav) }
                 composable(Routes.STRAPS) { StrapsScreen(app, nav) }
                 composable(Routes.WATCH_STATS) { WatchStatsScreen(app, nav) }
+                composable(Routes.COLLECTION_REPORT) { dev.personalterminal.ui.watch.CollectionReportScreen(app, nav) }
+                composable(Routes.CONTACT_SHEET) { dev.personalterminal.ui.watch.ContactSheetScreen(app, nav) }
                 composable(Routes.WATCH_BOX) { dev.personalterminal.ui.watch.WatchBoxScreen(app, nav) }
                 composable(Routes.WISHLIST_TAB, arguments = listOf(navArgument("tab") { type = NavType.StringType; defaultValue = "wishlist" })) {
                     dev.personalterminal.ui.watch.WishlistScreen(app, nav, it.arguments?.getString("tab") ?: "wishlist")

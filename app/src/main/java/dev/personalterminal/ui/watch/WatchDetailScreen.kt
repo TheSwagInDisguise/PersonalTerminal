@@ -287,6 +287,87 @@ fun WatchDetailScreen(app: PersonalTerminalApp, nav: NavHostController, watchId:
             Text("strap library →", color = p.cyan, style = MaterialTheme.typography.labelSmall, modifier = Modifier.clickable { nav.navigate(Routes.STRAPS) }.padding(top = 4.dp))
         }
 
+        // ---- gallery & documents (0.4.0) ----
+        val galleryPhotos by remember(app, w.id) { app.watches.observeWatchPhotos(w.id) }.collectAsStateWithLifecycle(initialValue = emptyList())
+        val watchDocs by remember(app, w.id) { app.watches.observeWatchDocuments(w.id) }.collectAsStateWithLifecycle(initialValue = emptyList())
+        var photoKind by remember { mutableStateOf("dial") }
+        var docKind by remember { mutableStateOf("receipt") }
+        val photoLauncher = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.GetContent()) { uri ->
+            uri?.let { u -> scope.launch { status = if (app.watches.addWatchPhoto(w.id, u, photoKind)) "photo added" else "photo import failed" } }
+        }
+        val docLauncher = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.GetContent()) { uri ->
+            uri?.let { u ->
+                scope.launch {
+                    val label = u.lastPathSegment?.substringAfterLast('/') ?: ""
+                    status = if (app.watches.addWatchDocument(w.id, u, docKind, label)) "document attached" else "document import failed"
+                }
+            }
+        }
+        TerminalPanel(title = "gallery (${galleryPhotos.size})", titleColor = p.cyan) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                listOf("dial", "caseback", "papers").forEach { k ->
+                    Text(
+                        (if (photoKind == k) "[$k]" else " $k "),
+                        color = if (photoKind == k) p.green else p.fgDim,
+                        style = MaterialTheme.typography.labelMedium,
+                        modifier = Modifier.clickable { photoKind = k }.padding(horizontal = 3.dp),
+                    )
+                }
+                Spacer(Modifier.weight(1f))
+                TermButton("+ photo", color = p.cyan, onClick = { photoLauncher.launch("image/*") })
+            }
+            if (galleryPhotos.isEmpty()) {
+                Spacer(Modifier.height(4.dp))
+                Comment("dial / caseback / papers — extra shots beyond the profile photo")
+            } else {
+                Spacer(Modifier.height(6.dp))
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    galleryPhotos.forEach { ph ->
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            PhotoImage(
+                                app.watches.photoFile(ph.path), version = ph.path.hashCode(),
+                                modifier = Modifier.size(88.dp).clip(RoundedCornerShape(6.dp)),
+                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(ph.kind.ifBlank { "photo" }, color = p.fgDim, style = MaterialTheme.typography.labelSmall)
+                                Text(" [x]", color = p.red, style = MaterialTheme.typography.labelSmall,
+                                    modifier = Modifier.clickable { scope.launch { app.watches.deleteWatchPhoto(ph) } }.padding(2.dp))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        TerminalPanel(title = "documents (${watchDocs.size})", titleColor = p.yellow) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                listOf("receipt", "warranty", "other").forEach { k ->
+                    Text(
+                        (if (docKind == k) "[$k]" else " $k "),
+                        color = if (docKind == k) p.green else p.fgDim,
+                        style = MaterialTheme.typography.labelMedium,
+                        modifier = Modifier.clickable { docKind = k }.padding(horizontal = 3.dp),
+                    )
+                }
+                Spacer(Modifier.weight(1f))
+                TermButton("+ attach", color = p.yellow, onClick = { docLauncher.launch("*/*") })
+            }
+            if (watchDocs.isEmpty()) {
+                Spacer(Modifier.height(4.dp))
+                Comment("receipts & warranties — the insurance report lists them")
+            } else {
+                watchDocs.forEach { d ->
+                    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(d.kind, color = p.yellow, style = MaterialTheme.typography.labelSmall)
+                        Spacer(Modifier.width(8.dp))
+                        Text(d.label, color = p.fg, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        Text(" [x]", color = p.red, style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.clickable { scope.launch { app.watches.deleteWatchDocument(d) } }.padding(2.dp))
+                    }
+                }
+            }
+        }
+        TermButton("collection report →", color = p.yellow, onClick = { nav.navigate(dev.personalterminal.ui.navigation.Routes.COLLECTION_REPORT) })
+
         TerminalPanel(title = "wrist shots (${logs.count { it.log.photoPath != null }})") {
             val shots = logs.filter { it.log.photoPath != null }
             if (shots.isEmpty()) Comment("no photos yet · use \"add wrist shot\" above")

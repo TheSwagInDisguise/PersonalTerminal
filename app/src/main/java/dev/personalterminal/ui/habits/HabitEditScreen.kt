@@ -409,6 +409,68 @@ fun HabitEditScreen(app: PersonalTerminalApp, nav: NavHostController, habitId: L
             TermButton("cancel", onClick = { nav.popBackStack() }, color = p.fgDim)
         }
         if (original != null) {
+            TerminalPanel(title = "challenge", titleColor = p.yellow) {
+                val c = dev.personalterminal.domain.Challenges
+                val today = dev.personalterminal.domain.AppClock.today()
+                if (c.isActive(original!!, today)) {
+                    Text(c.status(original!!, today), color = p.fg, style = MaterialTheme.typography.bodySmall)
+                    Spacer(Modifier.height(6.dp))
+                    TermButton("clear challenge", color = p.yellow, onClick = {
+                        scope.launch { app.habits.saveHabit(original!!.copy(chStart = 0L, chEnd = 0L, chStake = 0, chResolved = false)) }
+                    })
+                } else {
+                    if (c.isSettling(original!!, today)) {
+                        Comment("window closed — run `challenge ${original!!.name}` at the prompt for the certificate")
+                        Spacer(Modifier.height(4.dp))
+                    }
+                    var chDays by remember(original) { mutableStateOf(30) }
+                    var chStake by remember(original) { mutableStateOf(1) }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("days:", color = p.fgDim, style = MaterialTheme.typography.labelMedium)
+                        Spacer(Modifier.width(8.dp))
+                        listOf(14, 30, 75, 100).forEach { d ->
+                            Text(
+                                (if (chDays == d) "[$d]" else " $d "),
+                                color = if (chDays == d) p.green else p.fgDim,
+                                style = MaterialTheme.typography.labelMedium,
+                                modifier = Modifier.clickable { chDays = d }.padding(horizontal = 4.dp),
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("stake:", color = p.fgDim, style = MaterialTheme.typography.labelMedium)
+                        Spacer(Modifier.width(8.dp))
+                        listOf(0, 1, 3, 5).forEach { s ->
+                            Text(
+                                (if (chStake == s) "[${if (s == 0) "none" else "$s"}]" else " ${if (s == 0) "none" else "$s"} "),
+                                color = if (chStake == s) p.green else p.fgDim,
+                                style = MaterialTheme.typography.labelMedium,
+                                modifier = Modifier.clickable { chStake = s }.padding(horizontal = 4.dp),
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    TermButton(
+                        "start $chDays-day challenge",
+                        color = p.yellow,
+                        onClick = {
+                            scope.launch {
+                                app.habits.saveHabit(
+                                    original!!.copy(
+                                        chStart = today.toEpochDay(),
+                                        chEnd = today.toEpochDay() + chDays - 1,
+                                        chStake = chStake,
+                                        chResolved = false,
+                                    )
+                                )
+                            }
+                        },
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Comment("win = half the scheduled days · stake pays +10 xp per point, −5 on a miss")
+                }
+            }
             TerminalPanel(title = "pause", titleColor = p.yellow) {
                 val today = dev.personalterminal.domain.AppClock.today()
                 val pausedLabel = dev.personalterminal.domain.Schedule.pauseLabel(original!!, today)

@@ -5,6 +5,8 @@ import android.content.Context
 import dev.personalterminal.data.db.AppDatabase
 import dev.personalterminal.data.db.Watch
 import dev.personalterminal.data.db.WatchCount
+import dev.personalterminal.data.db.WatchPhoto
+import dev.personalterminal.data.db.WatchDocument
 import dev.personalterminal.data.db.WearLog
 import dev.personalterminal.data.db.WearLogWithWatch
 import dev.personalterminal.data.db.WatchService
@@ -407,6 +409,48 @@ class WatchRepository(private val context: Context, private val db: AppDatabase)
     }
 
     private fun csv(v: String): String = if (v.any { it == ',' || it == '"' || it == '\n' }) "\"" + v.replace("\"", "\"\"") + "\"" else v
+
+    // ---- gallery photos & documents (0.4.0) ----
+
+    fun observeWatchPhotos(watchId: Long): Flow<List<WatchPhoto>> = db.watchPhotoDao().observeForWatch(watchId)
+    fun observeWatchDocuments(watchId: Long): Flow<List<WatchDocument>> = db.watchDocumentDao().observeForWatch(watchId)
+    fun observeAllPhotos(): Flow<List<WatchPhoto>> = db.watchPhotoDao().observeAll()
+
+    /** Copies the picked image into the watch gallery (processed like every other shot). */
+    suspend fun addWatchPhoto(watchId: Long, src: android.net.Uri, kind: String): Boolean = withContext(Dispatchers.IO) {
+        runCatching {
+            val name = "extra_${watchId}_${System.currentTimeMillis()}.jpg"
+            dev.personalterminal.ui.watch.importPhoto(context, src, File(photoDir, name))
+            db.watchPhotoDao().insert(WatchPhoto(watchId = watchId, path = name, kind = kind))
+            true
+        }.getOrDefault(false)
+    }
+
+    suspend fun deleteWatchPhoto(p: WatchPhoto) = withContext(Dispatchers.IO) {
+        runCatching { File(photoDir, p.path).delete() }
+        db.watchPhotoDao().delete(p)
+    }
+
+    /** Copies a receipt / warranty / other document raw into `filesDir/watch_docs`. */
+    suspend fun addWatchDocument(watchId: Long, src: android.net.Uri, kind: String, label: String): Boolean = withContext(Dispatchers.IO) {
+        runCatching {
+            val dir = File(context.filesDir, "watch_docs").apply { mkdirs() }
+            val safe = label.replace(Regex("[^A-Za-z0-9._ -]"), "_").trim().ifBlank { kind.ifBlank { "doc" } }
+            val name = "${System.currentTimeMillis()}_$safe"
+            context.contentResolver.openInputStream(src)?.use { input ->
+                File(dir, name).outputStream().use { input.copyTo(it) }
+            } ?: return@runCatching false
+            db.watchDocumentDao().insert(WatchDocument(watchId = watchId, path = name, kind = kind, label = safe))
+            true
+        }.getOrDefault(false)
+    }
+
+    suspend fun deleteWatchDocument(d: WatchDocument) = withContext(Dispatchers.IO) {
+        runCatching { File(context.filesDir, "watch_docs/${d.path}").delete() }
+        db.watchDocumentDao().delete(d)
+    }
+
+    fun documentFile(d: WatchDocument): File = File(context.filesDir, "watch_docs/${d.path}")
 
     companion object {
         const val PHOTO_DIR = "watch_photos"

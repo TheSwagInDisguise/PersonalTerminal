@@ -21,6 +21,8 @@ object Routes {
     const val SESSIONS = "timer/sessions"
     const val STRAPS = "straps"
     const val WATCH_STATS = "watch/stats"
+    const val COLLECTION_REPORT = "watch/report"
+    const val CONTACT_SHEET = "watch/sheet"
     const val WATCH_BOX = "watch/box"
     const val WISHLIST = "watch/wishlist"
     const val WISHLIST_TAB = "watch/wishlist?tab={tab}"
