@@ -25,6 +25,9 @@ import java.time.LocalDate
 
 /** Watches, wear logs and the on-disk photo store (filesDir/watch_photos). */
 class WatchRepository(private val context: Context, private val db: AppDatabase) {
+    /** 7.3 sync journal — null in tests; wired by the app on creation. */
+    var journal: dev.personalterminal.sync.SyncJournal? = null
+
     private val watchDao = db.watchDao()
     private val wearDao = db.wearLogDao()
     private val serviceDao = db.watchServiceDao()

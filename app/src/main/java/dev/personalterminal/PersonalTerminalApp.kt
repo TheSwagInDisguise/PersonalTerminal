@@ -36,8 +36,9 @@ open class PersonalTerminalApp : Application() {
 
     val db: AppDatabase by lazy { AppDatabase.get(this) }
     val prefs: UserPrefs by lazy { UserPrefs(this) }
-    val habits: HabitRepository by lazy { HabitRepository(db) }
-    val watches: WatchRepository by lazy { WatchRepository(this, db) }
+    val syncJournal: dev.personalterminal.sync.SyncJournal by lazy { dev.personalterminal.sync.SyncJournal(db, prefs) }
+    val habits: HabitRepository by lazy { HabitRepository(db).also { it.journal = syncJournal } }
+    val watches: WatchRepository by lazy { WatchRepository(this, db).also { it.journal = syncJournal } }
     val backups: BackupManager by lazy { BackupManager(this, db, prefs, watches, BuildConfig.VERSION_NAME) }
     val googleAuth: GoogleAuth by lazy { GoogleAuth(this) }
     val driveSync: DriveSync by lazy { DriveSync(this, googleAuth, backups, prefs) }

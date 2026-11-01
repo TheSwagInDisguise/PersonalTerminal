@@ -38,6 +38,9 @@ import java.time.LocalDate
  */
 class HabitRepository(private val db: AppDatabase) {
 
+    /** 7.3 sync journal — null in tests; wired by the app on creation. */
+    var journal: dev.personalterminal.sync.SyncJournal? = null
+
     private val habitDao = db.habitDao()
     private val logDao = db.habitLogDao()
     private val shieldDao = db.shieldDao()
