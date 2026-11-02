@@ -149,10 +149,10 @@ class UserPrefs(private val context: Context) {
      * Stable per-install id for the sync journal (7.3) — created on first use so two phones
      * can tell each other's events apart in the append-only log.
      */
-    suspend fun syncDeviceId(): String = dataStore.data.first().let { p ->
+    suspend fun syncDeviceId(): String = context.dataStore.data.first().let { p ->
         p[Keys.SYNC_DEVICE] ?: run {
             val fresh = "dev-" + java.util.UUID.randomUUID().toString().take(8)
-            dataStore.edit { it[Keys.SYNC_DEVICE] = fresh }
+            context.dataStore.edit { it[Keys.SYNC_DEVICE] = fresh }
             fresh
         }
     }
