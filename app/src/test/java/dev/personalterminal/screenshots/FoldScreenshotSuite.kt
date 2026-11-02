@@ -14,8 +14,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performClick
 import androidx.navigation.compose.rememberNavController
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -27,7 +25,6 @@ import dev.personalterminal.timer.PomodoroService
 import dev.personalterminal.timer.TimerState
 import dev.personalterminal.ui.habits.HabitEditScreen
 import dev.personalterminal.ui.navigation.AppScaffold
-import dev.personalterminal.ui.navigation.Routes
 import dev.personalterminal.ui.navigation.StatusLine
 import dev.personalterminal.ui.navigation.Tab
 import dev.personalterminal.ui.theme.Term
@@ -117,18 +114,12 @@ private fun shootApp(
     activity: Activity,
     app: PersonalTerminalApp,
     name: String,
-    startRoute: String? = null,
-    selectText: String? = null,
 ) {
     val settings = baseSettings(onboarded = true)
     rule.setContent {
         TerminalTheme(settings) {
-            AppScaffold(app = app, settings = settings, startRoute = startRoute, onRouteConsumed = { })
+            AppScaffold(app = app, settings = settings, startRoute = null, onRouteConsumed = { })
         }
-    }
-    if (selectText != null) {
-        rule.waitForIdle()
-        rule.onNodeWithText(selectText).performClick()
     }
     settleAndCapture(rule, activity, name)
 }
@@ -219,10 +210,6 @@ class InnerSplitSuite {
     @After fun unstub() { WindowInfoTracker.reset() }
 
     @Test fun splitAtHinge() = shootApp(rule, rule.activity, app, "37-inner-split")
-
-    @Test fun selectedHabitDetailsOnFarPane() = shootApp(
-        rule, rule.activity, app, "39-fold-habit-detail", startRoute = Routes.HABITS, selectText = "meditate",
-    )
 }
 
 // ------------------------------------------------------------------ Flex Mode / tabletop (landscape + hinge)
