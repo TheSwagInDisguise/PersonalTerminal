@@ -2,6 +2,7 @@ package dev.personalterminal.ui.habits
 
 import dev.personalterminal.domain.AppClock
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -46,7 +47,12 @@ import java.time.LocalDate
 
 /** `ls habits` – every habit grouped by routine with reorder / archive controls. */
 @Composable
-fun HabitsScreen(app: PersonalTerminalApp, nav: NavHostController) {
+fun HabitsScreen(
+    app: PersonalTerminalApp,
+    nav: NavHostController,
+    onSelectHabit: ((Long) -> Unit)? = null,
+    selectedHabitId: Long? = null,
+) {
     val p = Term.palette
     val scope = rememberCoroutineScope()
     val summary by remember { app.habits.observeDay(AppClock.today()) }.collectAsStateWithLifecycle(initialValue = null)
@@ -83,8 +89,9 @@ fun HabitsScreen(app: PersonalTerminalApp, nav: NavHostController) {
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .background(p.bgAlt, RoundedCornerShape(6.dp))
-                        .clickable { nav.navigate(Routes.habitDetail(h.id)) }
+                        .background(if (h.id == selectedHabitId) p.bgHighlight else p.bgAlt, RoundedCornerShape(6.dp))
+                        .then(if (h.id == selectedHabitId) Modifier.border(1.5.dp, p.green, RoundedCornerShape(6.dp)) else Modifier)
+                        .clickable { onSelectHabit?.invoke(h.id) ?: nav.navigate(Routes.habitDetail(h.id)) }
                         .padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {

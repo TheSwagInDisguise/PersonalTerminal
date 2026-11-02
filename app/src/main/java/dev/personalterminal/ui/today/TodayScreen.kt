@@ -86,8 +86,17 @@ import java.time.format.DateTimeFormatter
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 @Composable
-fun TodayScreen(app: PersonalTerminalApp, nav: NavHostController) {
+fun TodayScreen(
+    app: PersonalTerminalApp,
+    nav: NavHostController,
+    onSelectHabit: ((Long) -> Unit)? = null,
+    selectedHabitId: Long? = null,
+) {
     val p = Term.palette
+    fun openHabit(id: Long) {
+        val select = onSelectHabit
+        if (select != null) select(id) else nav.navigate(Routes.habitDetail(id))
+    }
     val scope = rememberCoroutineScope()
     var date by remember { mutableStateOf(AppClock.today()) }
     val summary by remember { snapshotFlow { date }.flatMapLatest { app.habits.observeDay(it) } }
@@ -241,7 +250,7 @@ fun TodayScreen(app: PersonalTerminalApp, nav: NavHostController) {
                             style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { nav.navigate(Routes.habitDetail(hs.habit.id)) }
+                                .clickable { openHabit(hs.habit.id) }
                                 .padding(vertical = 3.dp),
                         )
                     }
@@ -278,13 +287,13 @@ fun TodayScreen(app: PersonalTerminalApp, nav: NavHostController) {
             items(dueHabits, key = { "h-${it.habit.id}" }) { hs ->
                 HabitRow(
                     hs = hs,
-                    selected = hs.habit.id == selHabitId,
+                    selected = hs.habit.id == selHabitId || hs.habit.id == selectedHabitId,
                     onToggle = { scope.launch { app.habits.toggle(hs.habit.id, date) } },
                     onToggleItem = { i -> scope.launch { app.habits.toggleItem(hs.habit.id, i, date) } },
                     onIncrement = { scope.launch { app.habits.addValue(hs.habit.id, 1, date) } },
                     onDecrement = { scope.launch { app.habits.addValue(hs.habit.id, -1, date) } },
                     onTimer = { nav.navigate(Routes.timer(hs.habit.id)) },
-                    onOpen = { nav.navigate(Routes.habitDetail(hs.habit.id)) },
+                    onOpen = { openHabit(hs.habit.id) },
                     onShield = { day -> scope.launch { app.habits.useShield(hs.habit.id, day) } },
                     shieldsAvailable = s.shieldsAvailable,
                     expanded = expanded == hs.habit.id,
