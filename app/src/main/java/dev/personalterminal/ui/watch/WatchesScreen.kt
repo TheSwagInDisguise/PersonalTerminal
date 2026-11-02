@@ -2,6 +2,7 @@ package dev.personalterminal.ui.watch
 
 import dev.personalterminal.domain.AppClock
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -57,8 +58,17 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 
 @Composable
-fun WatchesScreen(app: PersonalTerminalApp, nav: NavHostController) {
+fun WatchesScreen(
+    app: PersonalTerminalApp,
+    nav: NavHostController,
+    onSelectWatch: ((Long) -> Unit)? = null,
+    selectedWatchId: Long? = null,
+) {
     val p = Term.palette
+    fun openWatch(id: Long) {
+        val select = onSelectWatch
+        if (select != null) select(id) else nav.navigate(Routes.watchDetail(id))
+    }
     val watches by remember { app.watches.observeWatches() }.collectAsStateWithLifecycle(initialValue = emptyList())
     val counts by remember { app.watches.observeWearCounts() }.collectAsStateWithLifecycle(initialValue = emptyList())
     val today = AppClock.today()
@@ -144,7 +154,7 @@ fun WatchesScreen(app: PersonalTerminalApp, nav: NavHostController) {
             val mutations by app.habits.mutations.collectAsStateWithLifecycle()
             LaunchedEffect(mutations, counts) { next = app.watches.suggestNext(today) }
             val n = next
-            if (n != null) TerminalPanel(title = "watch next", titleColor = p.yellow, onClick = { nav.navigate(Routes.watchDetail(n.first.id)) }) {
+            if (n != null) TerminalPanel(title = "watch next", titleColor = p.yellow, onClick = { openWatch(n.first.id) }) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     WatchThumb(app, n.first, 40.dp)
                     Spacer(Modifier.width(10.dp))
@@ -163,7 +173,10 @@ fun WatchesScreen(app: PersonalTerminalApp, nav: NavHostController) {
         items(watches, key = { it.id }) { w ->
             val n = countMap[w.id] ?: 0
             Row(
-                Modifier.fillMaxWidth().background(p.bgAlt, RoundedCornerShape(6.dp)).clickable { nav.navigate(Routes.watchDetail(w.id)) }.padding(10.dp),
+                Modifier.fillMaxWidth()
+                    .background(if (w.id == selectedWatchId) p.bgHighlight else p.bgAlt, RoundedCornerShape(6.dp))
+                    .then(if (w.id == selectedWatchId) Modifier.border(1.5.dp, p.cyan, RoundedCornerShape(6.dp)) else Modifier)
+                    .clickable { openWatch(w.id) }.padding(10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 WatchThumb(app, w, 56.dp)

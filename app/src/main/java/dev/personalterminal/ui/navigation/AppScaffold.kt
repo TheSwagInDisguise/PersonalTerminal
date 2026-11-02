@@ -88,24 +88,27 @@ fun AppScaffold(app: PersonalTerminalApp, settings: Settings, startRoute: String
     val currentRoute = backStack?.destination?.route
     val currentTab = Tab.entries.firstOrNull { t -> currentRoute?.substringBefore("?") == t.route.substringBefore("?") }
 
-    // Tablets / landscape phones / unfolded foldables: tmux-style split. The left pane keeps
-    // today's list permanently in view; the right pane hosts everything else.
-    //
-    // Split when the window is wide (≥840dp, tablets) *or* when it is ≥600dp wide and the device
-    // reports a vertical fold (Fold-class inner screen in portrait: ~690dp wide, which never
-    // reaches 840 on its own). The fold case divides the panes exactly at the hinge – about
-    // 345dp per side, almost exactly the cover screen's width – so each pane gets a layout the
-    // app already fits. A flat-open inner screen reports the fold with zero width and book
-    // posture (half-folded) reports a real divider; both carry the same x, so both align.
+    // Expanded layouts use section → list → detail rather than pinning Today beside every route.
+    // On a book fold the list ends exactly at the hinge; the selected item's detail lives on the
+    // far side. On a wide tablet the same master/detail relationship uses a 42/58 split.
     val sizeClass = currentWindowAdaptiveInfo().windowSizeClass.windowWidthSizeClass
-    val expanded = sizeClass != WindowWidthSizeClass.COMPACT    // ≥600dp → side rail
-    val veryWide = sizeClass == WindowWidthSizeClass.EXPANDED    // ≥840dp → split without a fold
-    val fold = rememberWindowFold()                              // physical hinge + posture
-    val foldX = fold.foldXDp
+    val expanded = sizeClass != WindowWidthSizeClass.COMPACT
+    val veryWide = sizeClass == WindowWidthSizeClass.EXPANDED
+    val foldX = rememberWindowFold().foldXDp
     val split = veryWide || (expanded && foldX != null)
-    // Destination lambdas may be composed from a graph that was built before a fold, so anything
-    // layout-sensitive read *inside* composable() goes through this State (see composable(TODAY)).
     val splitState = rememberUpdatedState(split)
+    val selectedHabitIdState = androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf<Long?>(null) }
+    val selectedWatchIdState = androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf<Long?>(null) }
+    val selectedHabitId by selectedHabitIdState
+    val selectedWatchId by selectedWatchIdState
+    fun selectHabit(id: Long) {
+        selectedHabitIdState.value = id
+        selectedWatchIdState.value = null
+    }
+    fun selectWatch(id: Long) {
+        selectedWatchIdState.value = id
+        selectedHabitIdState.value = null
+    }
 
     Scaffold(
         containerColor = p.bg,
@@ -113,28 +116,33 @@ fun AppScaffold(app: PersonalTerminalApp, settings: Settings, startRoute: String
         bottomBar = { if (!expanded) StatusLine(nav, currentTab, settings) },
     ) { padding ->
         Row(Modifier.fillMaxSize().padding(padding)) {
-            if (expanded) SideRail(nav, currentTab, settings)
-            if (split) {
-                if (foldX != null) {
-                    // Divide exactly at the fold: rail + today on the left half, everything else right.
-                    Box(Modifier.width((foldX - RailWidth - 1.dp).coerceAtLeast(0.dp)).fillMaxHeight()) { TodayScreen(app, nav) }
-                } else {
-                    Box(Modifier.weight(0.42f).fillMaxHeight()) { TodayScreen(app, nav) }
-                }
-                Box(Modifier.width(1.dp).fillMaxHeight().background(p.border))
-            }
+            if (expanded) SideRail(nav, currentTab, settings, compact = foldX != null)
             Box(Modifier.weight(1f).fillMaxHeight()) {
-            // One fixed start destination, both modes. Switching it between Habits and Today when
-            // the layout changes (fold/unfold, rotation) rebuilds the graph and wipes the back
-            // stack – on a Fold that is exactly what killed a half-typed edit when the phone was
-            // folded mid-edit. In split mode the right pane idles on habits via composable(TODAY).
+            // Keep one NavHost through fold/unfold so in-progress forms and back stack survive.
+            // Only the list roots adopt master/detail; utility routes use the whole content area.
             NavHost(navController = nav, startDestination = Routes.TODAY) {
                 composable(Routes.TODAY) {
-                    // Split: the left pane owns Today, so the right pane idles on the habit list
-                    // instead of a second copy of Today (read splitState – see note above).
-                    if (splitState.value) HabitsScreen(app, nav) else TodayScreen(app, nav)
+                    if (splitState.value) FoldMasterDetailLayout(
+                        foldX = foldX,
+                        railWidth = if (foldX != null) CompactRailWidth else RailWidth,
+                        list = { TodayScreen(app, nav, onSelectHabit = ::selectHabit, selectedHabitId = selectedHabitId) },
+                        detail = {
+                            selectedHabitId?.let { HabitDetailScreen(app, nav, it) }
+                                ?: DetailPaneHint("today", "expand a habit and choose open to see its details here")
+                        },
+                    ) else TodayScreen(app, nav)
                 }
-                composable(Routes.HABITS) { HabitsScreen(app, nav) }
+                composable(Routes.HABITS) {
+                    if (splitState.value) FoldMasterDetailLayout(
+                        foldX = foldX,
+                        railWidth = if (foldX != null) CompactRailWidth else RailWidth,
+                        list = { HabitsScreen(app, nav, onSelectHabit = ::selectHabit, selectedHabitId = selectedHabitId) },
+                        detail = {
+                            selectedHabitId?.let { HabitDetailScreen(app, nav, it) }
+                                ?: DetailPaneHint("habit detail", "select a habit from the list")
+                        },
+                    ) else HabitsScreen(app, nav)
+                }
                 composable(
                     Routes.HABIT_EDIT,
                     arguments = listOf(
@@ -173,7 +181,17 @@ fun AppScaffold(app: PersonalTerminalApp, settings: Settings, startRoute: String
                     TimerScreen(app, nav, it.arguments?.getLong("habitId") ?: 0L)
                 }
                 composable(Routes.TIMELINE) { TimelineScreen(app, nav) }
-                composable(Routes.WATCHES) { WatchesScreen(app, nav) }
+                composable(Routes.WATCHES) {
+                    if (splitState.value) FoldMasterDetailLayout(
+                        foldX = foldX,
+                        railWidth = if (foldX != null) CompactRailWidth else RailWidth,
+                        list = { WatchesScreen(app, nav, onSelectWatch = ::selectWatch, selectedWatchId = selectedWatchId) },
+                        detail = {
+                            selectedWatchId?.let { WatchDetailScreen(app, nav, it) }
+                                ?: DetailPaneHint("watch detail", "select a watch from the collection")
+                        },
+                    ) else WatchesScreen(app, nav)
+                }
                 composable(Routes.WATCH_EDIT, arguments = listOf(navArgument("id") { type = NavType.LongType; defaultValue = 0L }, navArgument("wish") { type = NavType.IntType; defaultValue = 0 })) {
                     WatchEditScreen(app, nav, it.arguments?.getLong("id") ?: 0L, startOnWishlist = (it.arguments?.getInt("wish") ?: 0) == 1)
                 }
@@ -191,17 +209,50 @@ fun AppScaffold(app: PersonalTerminalApp, settings: Settings, startRoute: String
     }
 }
 
+/** A section list stays in the middle; its selected item's full screen detail occupies the far pane. */
+@Composable
+private fun FoldMasterDetailLayout(
+    foldX: androidx.compose.ui.unit.Dp?,
+    railWidth: androidx.compose.ui.unit.Dp,
+    list: @Composable () -> Unit,
+    detail: @Composable () -> Unit,
+) {
+    val p = Term.palette
+    Row(Modifier.fillMaxSize()) {
+        val listPane = if (foldX != null) {
+            Modifier.width((foldX - railWidth - 2.dp).coerceAtLeast(0.dp))
+        } else Modifier.weight(0.42f)
+        Box(listPane.fillMaxHeight()) { list() }
+        Box(Modifier.width(1.dp).fillMaxHeight().background(p.border))
+        Box(Modifier.weight(if (foldX != null) 1f else 0.58f).fillMaxHeight()) { detail() }
+    }
+}
+
+@Composable
+private fun DetailPaneHint(title: String, hint: String) {
+    val p = Term.palette
+    Column(
+        Modifier.fillMaxSize().padding(20.dp),
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text("— $title —", color = p.green, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(8.dp))
+        Text("# $hint", color = p.fgDim, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
 /** Width of the tmux-style side rail – also used to place the divider exactly on the fold. */
 private val RailWidth = 112.dp
+private val CompactRailWidth = 88.dp
 
 /** Vertical tab strip for wide layouts (`[0:today]` … stacked on the left, like a tmux pane list). */
 @Composable
-private fun SideRail(nav: NavHostController, current: Tab?, settings: Settings) {
+private fun SideRail(nav: NavHostController, current: Tab?, settings: Settings, compact: Boolean = false) {
     val p = Term.palette
     Column(
         Modifier
             .fillMaxHeight()
-            .width(RailWidth)
+            .width(if (compact) CompactRailWidth else RailWidth)
             .background(p.bgAlt)
             .windowInsetsPadding(WindowInsets.statusBars)
             // One UI shows a taskbar along the bottom of the inner screen; without this the
@@ -210,7 +261,7 @@ private fun SideRail(nav: NavHostController, current: Tab?, settings: Settings) 
             .padding(vertical = 12.dp, horizontal = 6.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text(settings.prompt, color = p.green, style = MaterialTheme.typography.labelSmall, maxLines = 1, modifier = Modifier.padding(horizontal = 4.dp))
+        Text(if (compact) settings.prompt.take(7) + "…" else settings.prompt, color = p.green, style = MaterialTheme.typography.labelSmall, maxLines = 1, modifier = Modifier.padding(horizontal = 4.dp))
         Spacer(Modifier.height(8.dp))
         Tab.entries.forEach { tab ->
             val selected = tab == current
