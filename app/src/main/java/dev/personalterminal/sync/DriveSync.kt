@@ -87,10 +87,15 @@ class DriveSync(
             is GoogleAuth.AuthzResult.Error -> return fail(a.message)
         }
         return try {
+            val client = DriveClient(token)
+            val folderId = client.ensureFolder()
             val tmp = File(context.cacheDir, "restore_${System.currentTimeMillis()}.${BackupManager.EXT}")
-            FileOutputStream(tmp).use { DriveClient(token).download(fileId, it) }
+            FileOutputStream(tmp).use { client.download(fileId, it) }
             val summary = FileInputStream(tmp).use { backups.restoreArchive(it, passphrase) }
             tmp.delete()
+            // Remember the account/folder so the restored install can back up to the same place.
+            val current = prefs.current()
+            prefs.setDriveAccount(current.driveAccountEmail, folderId)
             Outcome.Success(summary)
         } catch (e: BackupManager.PassphraseRequired) {
             Outcome.Failure(e.message ?: "passphrase required")
@@ -164,10 +169,15 @@ class DriveSync(
             is GoogleAuth.AuthzResult.Error -> return fail(a.message)
         }
         return try {
+            val client = DriveClient(token)
+            val folderId = client.ensureFolder()
             val tmp = File(context.cacheDir, "merge_${System.currentTimeMillis()}.${BackupManager.EXT}")
-            FileOutputStream(tmp).use { DriveClient(token).download(fileId, it) }
+            FileOutputStream(tmp).use { client.download(fileId, it) }
             val summary = FileInputStream(tmp).use { backups.mergeArchive(it, passphrase) }
             tmp.delete()
+            // A merged independent install must now back up to the same Drive folder.
+            val current = prefs.current()
+            prefs.setDriveAccount(current.driveAccountEmail, folderId)
             Outcome.Success(summary)
         } catch (e: BackupManager.PassphraseRequired) {
             Outcome.Failure(e.message ?: "passphrase required")

@@ -82,6 +82,16 @@ fun BootScreen(app: PersonalTerminalApp, onDone: () -> Unit) {
     }
     /** Onboarding path 2: link Drive without touching this install's local data. */
     suspend fun link(token: String? = null) {
+        // "link" can be pressed before "sign in & list backups". Make sure the account email is
+        // known first, otherwise DriveSync would persist a blank address with the folder id.
+        if (token == null && app.prefs.current().driveAccountEmail.isBlank()) {
+            val activity = ctx as? android.app.Activity ?: run { restoreLog = "sign-in requires an activity"; return }
+            when (val s = app.googleAuth.signIn(activity)) {
+                is dev.personalterminal.sync.GoogleAuth.SignInResult.Success -> app.prefs.setDriveAccount(s.email, "")
+                is dev.personalterminal.sync.GoogleAuth.SignInResult.Error -> { restoreLog = "sign-in failed: ${s.message}"; return }
+                dev.personalterminal.sync.GoogleAuth.SignInResult.NotConfigured -> { restoreLog = "missing GOOGLE_WEB_CLIENT_ID"; return }
+            }
+        }
         when (val r = app.driveSync.linkAccount(token)) {
             is dev.personalterminal.sync.DriveSync.Outcome.Success -> {
                 restoreLog = r.message
