@@ -10,6 +10,7 @@ import dev.personalterminal.data.backup.BackupManager
 import dev.personalterminal.data.db.AppDatabase
 import dev.personalterminal.data.prefs.UserPrefs
 import dev.personalterminal.data.repo.HabitRepository
+import dev.personalterminal.data.repo.PlannerRepository
 import dev.personalterminal.data.repo.WatchRepository
 import dev.personalterminal.sync.DriveSync
 import dev.personalterminal.sync.GoogleAuth
@@ -39,6 +40,7 @@ open class PersonalTerminalApp : Application() {
     val syncJournal: dev.personalterminal.sync.SyncJournal by lazy { dev.personalterminal.sync.SyncJournal(db, prefs) }
     val habits: HabitRepository by lazy { HabitRepository(db).also { it.journal = syncJournal } }
     val watches: WatchRepository by lazy { WatchRepository(this, db).also { it.journal = syncJournal } }
+    val planner: PlannerRepository by lazy { PlannerRepository(this, db).also { it.journal = syncJournal } }
     val backups: BackupManager by lazy { BackupManager(this, db, prefs, watches, BuildConfig.VERSION_NAME) }
     val googleAuth: GoogleAuth by lazy { GoogleAuth(this) }
     val driveSync: DriveSync by lazy { DriveSync(this, googleAuth, backups, prefs) }
@@ -73,12 +75,13 @@ open class PersonalTerminalApp : Application() {
             if (s.healthConnect) runCatching { dev.personalterminal.health.HealthSync.syncNow(this@PersonalTerminalApp) }
             runCatching { AppShortcuts.publish(this@PersonalTerminalApp) }
             runCatching { dev.personalterminal.widget.WidgetRollover.schedule(this@PersonalTerminalApp) }
+            runCatching { planner.allTasks().filter { !it.completed && it.reminderAt != null }.forEach { dev.personalterminal.reminders.PlannerReminder.schedule(this@PersonalTerminalApp, it) } }
             runCatching { dev.personalterminal.widget.VaultWidgetReceiver.refreshAll(this@PersonalTerminalApp) }
         }
 
         // Any data mutation → refresh widget and (if enabled) request a debounced backup.
         scope.launch {
-            habits.mutations.drop(1).collectLatest {
+            kotlinx.coroutines.flow.merge(habits.mutations, planner.mutations).drop(1).collectLatest {
                 HabitWidget.refreshAll(this@PersonalTerminalApp)
                 val s = prefs.current()
                 if (s.autoBackup && s.driveAccountEmail.isNotBlank()) DriveSync.requestSoon(this@PersonalTerminalApp)
@@ -120,6 +123,11 @@ open class PersonalTerminalApp : Application() {
                 description = getString(R.string.notification_channel_watch_desc)
             },
         )
+        nm.createNotificationChannel(
+            NotificationChannel(CHANNEL_PLANNER, "Planner task reminders", NotificationManager.IMPORTANCE_DEFAULT).apply {
+                description = "Reminders for one-off tasks with a due time"
+            },
+        )
     }
 
     companion object {
@@ -128,6 +136,7 @@ open class PersonalTerminalApp : Application() {
         const val CHANNEL_BACKUP = "backup"
         const val CHANNEL_REMINDERS = "reminders"
         const val CHANNEL_WATCH = "watch_service"
+        const val CHANNEL_PLANNER = "planner"
 
         fun get(context: Context): PersonalTerminalApp = context.applicationContext as PersonalTerminalApp
     }

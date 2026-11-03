@@ -13,13 +13,21 @@ import androidx.work.WorkerParameters
 import dev.personalterminal.PersonalTerminalApp
 import dev.personalterminal.data.backup.BackupManager
 import dev.personalterminal.data.prefs.UserPrefs
+import dev.personalterminal.domain.planner.NoteMarkdownSync
+import dev.personalterminal.domain.planner.NoteSyncResolution
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.util.concurrent.TimeUnit
 
 /**
- * Orchestrates backups to Drive. Used both interactively (Settings) and from [DriveBackupWorker].
+ * Orchestrates FULL-ARCHIVE backup/restore to Drive (`.ptbak` / `.ptbakx`) plus a separate
+ * two-way Markdown mirror for planner notes.
+ *
+ * IMPORTANT: this is NOT multi-device sync. The append-only `SyncEvent` / `SyncJournal`
+ * groundwork has no event transport or replay yet; DriveSync moves whole archives and Markdown
+ * files, not journal events. Used interactively (Settings / Boot / Planner) and from
+ * [DriveBackupWorker].
  */
 class DriveSync(
     private val context: Context,
@@ -122,6 +130,107 @@ class DriveSync(
             val msg = e.message ?: e.javaClass.simpleName
             prefs.setBackupVerified(System.currentTimeMillis(), "error: $msg")
             Outcome.Failure(msg)
+        }
+    }
+
+    /**
+     * Onboarding "link this install": keep all local data, just remember the Drive account and
+     * backup folder. Restore and merge are separate choices on the boot screen.
+     */
+    suspend fun linkAccount(accessToken: String? = null): Outcome {
+        val token = accessToken ?: when (val a = auth.authorizeDrive()) {
+            is GoogleAuth.AuthzResult.Granted -> a.accessToken
+            is GoogleAuth.AuthzResult.NeedsResolution -> return Outcome.NeedsConsent(a.intent)
+            is GoogleAuth.AuthzResult.Error -> return fail(a.message)
+        }
+        return try {
+            val folderId = DriveClient(token).ensureFolder()
+            val current = prefs.current()
+            prefs.setDriveAccount(current.driveAccountEmail, folderId)
+            Outcome.Success("linked drive folder $folderId (local data kept)")
+        } catch (e: Exception) {
+            fail(e.message ?: e.javaClass.simpleName)
+        }
+    }
+
+    /**
+     * Onboarding "merge an independent install": download a backup and merge it into the data
+     * already on this device instead of replacing it. See [BackupManager.mergeArchive].
+     */
+    suspend fun linkAndMerge(fileId: String, accessToken: String? = null, passphrase: String? = null): Outcome {
+        val token = accessToken ?: when (val a = auth.authorizeDrive()) {
+            is GoogleAuth.AuthzResult.Granted -> a.accessToken
+            is GoogleAuth.AuthzResult.NeedsResolution -> return Outcome.NeedsConsent(a.intent)
+            is GoogleAuth.AuthzResult.Error -> return fail(a.message)
+        }
+        return try {
+            val tmp = File(context.cacheDir, "merge_${System.currentTimeMillis()}.${BackupManager.EXT}")
+            FileOutputStream(tmp).use { DriveClient(token).download(fileId, it) }
+            val summary = FileInputStream(tmp).use { backups.mergeArchive(it, passphrase) }
+            tmp.delete()
+            Outcome.Success(summary)
+        } catch (e: BackupManager.PassphraseRequired) {
+            Outcome.Failure(e.message ?: "passphrase required")
+        } catch (e: Exception) {
+            Log.w(TAG, "merge failed", e)
+            fail(e.message ?: e.javaClass.simpleName)
+        }
+    }
+
+    /** Two-way Markdown: push the local note body as a `.md` file, if note sync is not paused. */
+    suspend fun pushNote(noteId: Long, accessToken: String? = null): Outcome {
+        val token = accessToken ?: when (val a = auth.authorizeDrive()) {
+            is GoogleAuth.AuthzResult.Granted -> a.accessToken
+            is GoogleAuth.AuthzResult.NeedsResolution -> return Outcome.NeedsConsent(a.intent)
+            is GoogleAuth.AuthzResult.Error -> return fail(a.message)
+        }
+        val planner = PersonalTerminalApp.get(context).planner
+        val note = planner.note(noteId) ?: return Outcome.Failure("note $noteId not found")
+        if (note.syncPaused) return Outcome.Failure("note sync paused – resolve the conflict in planner first")
+        return try {
+            val client = DriveClient(token)
+            val folder = prefs.current().driveFolderId.ifBlank { client.ensureFolder() }
+            val name = NoteMarkdownSync.fileName(note)
+            val existing = note.driveFileId.takeIf { it.isNotBlank() } ?: client.findMarkdown(folder, name)?.id
+            val remote = client.uploadText(folder, name, NoteMarkdownSync.toMarkdown(note), existing)
+            planner.markNoteSynced(noteId, remote.id, note.body)
+            Outcome.Success("pushed $name (two-way editable Markdown)")
+        } catch (e: Exception) {
+            Log.w(TAG, "note push failed", e)
+            fail(e.message ?: e.javaClass.simpleName)
+        }
+    }
+
+    /**
+     * Two-way Markdown: pull Drive edits. When both sides changed, note sync PAUSES and both
+     * versions stay on the row until the user chooses local / Drive / both.
+     */
+    suspend fun pullNote(noteId: Long, accessToken: String? = null): Outcome {
+        val token = accessToken ?: when (val a = auth.authorizeDrive()) {
+            is GoogleAuth.AuthzResult.Granted -> a.accessToken
+            is GoogleAuth.AuthzResult.NeedsResolution -> return Outcome.NeedsConsent(a.intent)
+            is GoogleAuth.AuthzResult.Error -> return fail(a.message)
+        }
+        val planner = PersonalTerminalApp.get(context).planner
+        val note = planner.note(noteId) ?: return Outcome.Failure("note $noteId not found")
+        return try {
+            val client = DriveClient(token)
+            val folder = prefs.current().driveFolderId.ifBlank { client.ensureFolder() }
+            val remote = note.driveFileId.takeIf { it.isNotBlank() }?.let { id ->
+                runCatching { client.downloadText(id) }.getOrNull()?.let { text -> id to text }
+            } ?: (client.findMarkdown(folder, NoteMarkdownSync.fileName(note))?.let { f -> f.id to client.downloadText(f.id) }
+                ?: return Outcome.Failure("no Drive Markdown file for this note yet"))
+            val body = NoteMarkdownSync.bodyFromMarkdown(remote.second)
+            val at = System.currentTimeMillis()
+            when (val r = planner.pullNoteMarkdown(noteId, body, at, remote.first)) {
+                is NoteSyncResolution.Conflict -> Outcome.Success("conflict: sync paused, both versions retained – choose in planner")
+                is NoteSyncResolution.ApplyRemote -> Outcome.Success("applied Drive Markdown edits")
+                is NoteSyncResolution.PushLocal -> Outcome.Success("local copy is newer – push it to Drive")
+                is NoteSyncResolution.Unchanged -> Outcome.Success("note already in sync")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "note pull failed", e)
+            fail(e.message ?: e.javaClass.simpleName)
         }
     }
 

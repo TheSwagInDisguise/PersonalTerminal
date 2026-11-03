@@ -501,8 +501,14 @@ interface WatchPhotoDao {
     @Query("SELECT * FROM watch_photos WHERE watchId = :watchId ORDER BY createdAt DESC")
     suspend fun getForWatch(watchId: Long): List<WatchPhoto>
 
+    @Query("SELECT * FROM watch_photos")
+    suspend fun getAll(): List<WatchPhoto>
+
     @Insert
     suspend fun insert(photo: WatchPhoto): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(photos: List<WatchPhoto>)
 
     @Delete
     suspend fun delete(photo: WatchPhoto)
@@ -519,8 +525,14 @@ interface WatchDocumentDao {
     @Query("SELECT * FROM watch_documents WHERE watchId = :watchId ORDER BY createdAt DESC")
     suspend fun getForWatch(watchId: Long): List<WatchDocument>
 
+    @Query("SELECT * FROM watch_documents")
+    suspend fun getAll(): List<WatchDocument>
+
     @Insert
     suspend fun insert(doc: WatchDocument): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(docs: List<WatchDocument>)
 
     @Delete
     suspend fun delete(doc: WatchDocument)
@@ -529,7 +541,7 @@ interface WatchDocumentDao {
     suspend fun deleteAll()
 }
 
-/** Append-only journal for multi-device sync (7.3). Reads are cursor- and LWW-driven. */
+/** Append-only journal groundwork (7.3). No event transport or replay is shipped yet. */
 @Dao
 interface SyncEventDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -557,6 +569,105 @@ interface SyncEventDao {
     @Query("DELETE FROM sync_log WHERE ts < :before")
     suspend fun pruneBefore(before: Long)
 
+    /** Future transport can page one entity at a time; not wired to Drive in 0.5.0. */
+    @Query("SELECT * FROM sync_log WHERE entity = :entity AND seq > :since ORDER BY seq ASC")
+    suspend fun forEntitySince(entity: String, since: Long): List<SyncEvent>
+
+    @Query("DELETE FROM sync_log")
+    suspend fun deleteAll()
+
     @Query("SELECT * FROM sync_log ORDER BY ts ASC")
     fun observeAll(): kotlinx.coroutines.flow.Flow<List<SyncEvent>>
+}
+
+// ------------------------------------------------------------------ planner DAOs (0.5.0)
+
+@Dao
+interface PlannerProjectDao {
+    @Query("SELECT * FROM planner_projects WHERE archived = 0 ORDER BY name")
+    fun observeActive(): Flow<List<PlannerProject>>
+
+    @Query("SELECT * FROM planner_projects ORDER BY name")
+    suspend fun getAll(): List<PlannerProject>
+
+    @Query("SELECT * FROM planner_projects WHERE id = :id")
+    suspend fun getById(id: Long): PlannerProject?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(project: PlannerProject): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(projects: List<PlannerProject>)
+
+    @Update
+    suspend fun update(project: PlannerProject)
+
+    @Delete
+    suspend fun delete(project: PlannerProject)
+
+    @Query("DELETE FROM planner_projects")
+    suspend fun deleteAll()
+}
+
+@Dao
+interface PlannerTaskDao {
+    @Query("SELECT * FROM planner_tasks ORDER BY completed, CASE priority WHEN 'URGENT' THEN 0 WHEN 'HIGH' THEN 1 WHEN 'NORMAL' THEN 2 ELSE 3 END, dueDay IS NULL, dueDay, id")
+    fun observeAll(): Flow<List<PlannerTask>>
+
+    @Query("SELECT * FROM planner_tasks WHERE completed = 0 ORDER BY CASE priority WHEN 'URGENT' THEN 0 WHEN 'HIGH' THEN 1 WHEN 'NORMAL' THEN 2 ELSE 3 END, dueDay IS NULL, dueDay, id")
+    fun observeOpen(): Flow<List<PlannerTask>>
+
+    @Query("SELECT * FROM planner_tasks WHERE projectId = :projectId ORDER BY completed, dueDay IS NULL, dueDay, id")
+    fun observeForProject(projectId: Long): Flow<List<PlannerTask>>
+
+    @Query("SELECT * FROM planner_tasks ORDER BY completed, dueDay IS NULL, dueDay, id")
+    suspend fun getAll(): List<PlannerTask>
+
+    @Query("SELECT * FROM planner_tasks WHERE id = :id")
+    suspend fun getById(id: Long): PlannerTask?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(task: PlannerTask): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(tasks: List<PlannerTask>)
+
+    @Update
+    suspend fun update(task: PlannerTask)
+
+    @Delete
+    suspend fun delete(task: PlannerTask)
+
+    @Query("DELETE FROM planner_tasks")
+    suspend fun deleteAll()
+}
+
+@Dao
+interface PlannerNoteDao {
+    @Query("SELECT * FROM planner_notes ORDER BY updatedAt DESC")
+    fun observeAll(): Flow<List<PlannerNote>>
+
+    @Query("SELECT * FROM planner_notes WHERE syncPaused = 1 AND pendingRemoteBody IS NOT NULL")
+    fun observeConflicts(): Flow<List<PlannerNote>>
+
+    @Query("SELECT * FROM planner_notes ORDER BY updatedAt DESC")
+    suspend fun getAll(): List<PlannerNote>
+
+    @Query("SELECT * FROM planner_notes WHERE id = :id")
+    suspend fun getById(id: Long): PlannerNote?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(note: PlannerNote): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(notes: List<PlannerNote>)
+
+    @Update
+    suspend fun update(note: PlannerNote)
+
+    @Delete
+    suspend fun delete(note: PlannerNote)
+
+    @Query("DELETE FROM planner_notes")
+    suspend fun deleteAll()
 }

@@ -494,8 +494,8 @@ data class StrapSwap(
 
 /**
  * One append-only sync journal entry (7.3). Every local mutation of a base table is recorded
- * here; devices exchange these rows through Drive chunks and replay them with per-row
- * last-writer-wins on (ts, device). `rowId` is the primary key of the affected row as text
+ * here. Event transport/replay is NOT implemented in 0.5.0 — DriveSync still moves whole
+ * backup archives. `rowId` is the primary key of the affected row as text
  * ("prefs:theme" for settings keys). The composite (device, seq) primary key lets a peer's
  * rows be inserted verbatim without colliding with local sequence numbers.
  */
@@ -517,3 +517,85 @@ data class SyncEvent(
     /** kotlinx.serialization JSON of the row after the write; "" for deletes. */
     val payload: String = "",
 )
+
+// ------------------------------------------------------------------ planner (0.5.0 / V1.0)
+
+/** One-off work is deliberately NOT a [Habit]: it has no streak, schedule or XP ledger. */
+enum class PlannerPriority(val label: String, val rank: Int) {
+    LOW("low", 0), NORMAL("normal", 1), HIGH("high", 2), URGENT("urgent", 3);
+
+    companion object {
+        fun of(name: String): PlannerPriority = entries.firstOrNull { it.name.equals(name, true) } ?: NORMAL
+    }
+}
+
+/** A named bucket for one-off tasks and notes (e.g. "renovate the study"). */
+@Serializable
+@Entity(tableName = "planner_projects", indices = [Index("name")])
+data class PlannerProject(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    /** Markdown, same dialect as [PlannerNote]. */
+    val notes: String = "",
+    val color: String = "cyan",
+    val archived: Boolean = false,
+    val createdAt: Long = AppClock.clock.millis(),
+    val updatedAt: Long = AppClock.clock.millis(),
+)
+
+/**
+ * A one-off task. `dueDay` is an epoch day (date only); `reminderAt` is epoch millis for the
+ * exact alarm. `checklist`, `links` and `attachments` are newline-separated records so the
+ * archive stays a flat, human-readable JSON payload.
+ */
+@Serializable
+@Entity(tableName = "planner_tasks", indices = [Index("projectId"), Index("dueDay")])
+data class PlannerTask(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val title: String,
+    /** Markdown. */
+    val notes: String = "",
+    val projectId: Long? = null,
+    val priority: String = PlannerPriority.NORMAL.name,
+    val dueDay: Long? = null,
+    val reminderAt: Long? = null,
+    /** "0|label" / "1|label" per line. */
+    val checklist: String = "",
+    /** "label<TAB>uri" per line; `pt://habit/1` etc. are contextual in-app links. */
+    val links: String = "",
+    /** "label<TAB>uri" per line; content:// or file paths to documents / images. */
+    val attachments: String = "",
+    val completed: Boolean = false,
+    val completedAt: Long? = null,
+    val createdAt: Long = AppClock.clock.millis(),
+    val updatedAt: Long = AppClock.clock.millis(),
+)
+
+/**
+ * A Markdown note. `projectId` / `taskId` and [links] give it context. Drive keeps a plain
+ * `.md` mirror; [lastSyncedBody] is the common base for two-way editing. When both sides changed,
+ * [pendingRemoteBody] holds the Drive version, [body] keeps the local version and [syncPaused]
+ * blocks further note sync until the user chooses — both versions are retained.
+ */
+@Serializable
+@Entity(tableName = "planner_notes", indices = [Index("projectId"), Index("taskId")])
+data class PlannerNote(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val title: String,
+    val body: String = "",
+    val projectId: Long? = null,
+    val taskId: Long? = null,
+    val links: String = "",
+    val attachments: String = "",
+    val driveFileId: String = "",
+    val lastSyncedBody: String = "",
+    val lastSyncedAt: Long = 0L,
+    val pendingRemoteBody: String? = null,
+    val pendingRemoteAt: Long = 0L,
+    val syncPaused: Boolean = false,
+    val createdAt: Long = AppClock.clock.millis(),
+    val updatedAt: Long = AppClock.clock.millis(),
+)
+
+/** True when a note is waiting for the user to resolve a two-way Markdown conflict. */
+val PlannerNote.hasPendingConflict: Boolean get() = syncPaused && pendingRemoteBody != null

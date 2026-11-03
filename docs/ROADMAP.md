@@ -3,10 +3,11 @@
 Ideas for where Personal Terminal can go next, grouped by theme and roughly ordered by
 value-for-effort inside each group. Effort: **S** = an evening, **M** = a weekend, **L** = a multi-week feature.
 
-**Status (0.3.7):** everything marked ✅ has shipped – see the release notes and
+**Status (0.5.0):** everything marked ✅ has shipped – see the release notes and
 [docs/AUTOMATION.md](AUTOMATION.md) for the command line / intent API. Unmarked rows are still open.
-Tags v0.3.3–v0.3.7 were published retroactively so the tag line matches the shipped bundles; the
-next release continues from v0.3.8 (see the B-list bundle plan in [IDEAS.md](IDEAS.md)).
+Tags v0.3.3–v0.3.7 were published retroactively so the tag line matches the shipped bundles;
+0.4.2 already carried the schema-10 `sync_log` groundwork and 0.5.0 adds the planner bundle
+(see [V1.0_PLAN.md](V1.0_PLAN.md) and the B-list plan in [IDEAS.md](IDEAS.md)).
 
 **Scope note.** Personal Terminal is a *personal-use* project that leans heavily on the ideas in
 Init Habits. It will not be published to any store and will not grow a Wear OS companion; rows that
@@ -112,15 +113,17 @@ have been removed rather than left open.
 |---|---------|-----|--------|
 | 7.1 ✅ | **Restore-from-Drive on first launch** ("found a backup from 3 days ago — restore?") | Completes the backup story for phone migrations | S |
 | 7.2 ✅ | **Encrypted backups** (passphrase → AES-GCM over the zip) | Wear photos + notes are personal | S |
-| 7.3 | **Conflict-free multi-device sync** (append-only log of events replayed on each device) | Real sync instead of last-writer-wins backup — big, only if a second device matters | L |
+| 7.3 ◐ | **Append-only sync journal groundwork** (0.5.0): `sync_log` / `SyncEvent` / `SyncJournal`, now also fed by planner writes and note-conflict events | Prerequisite for real sync; **no event transport or replay is shipped yet** | L |
 | 7.4 ✅ | **Import from other apps** (Loop Habit Tracker CSV, Habitica, Streaks) | Lowers the switching cost | M |
 | 7.6 ✅ | **Backup heartbeat + verify** (0.3.4): profile shows `last backup 3 h ago · 1.2 MB · 214 photos`, `verify` downloads the newest Drive archive and dry-runs a restore (decrypt, parse, photo audit), `self-check` round-trips an archive locally | Backups fail silently; a visible heartbeat is the cheapest insurance | S |
 | 7.5 ✅ | **Room migrations test + schema CI check** and **Compose screenshot tests in CI** (the `screenshots` task already renders every screen; assert against golden PNGs) | Guard rails as the codebase grows | S |
 
 ## Notes on the shipped items
 
+- **7.3** ships only the journal groundwork (schema 10 `sync_log`, planner write hooks and note-conflict
+  events). Transport/replay is explicitly out of scope for 0.5.0 — see [V1.0_PLAN.md](V1.0_PLAN.md).
 - **7.5** ships as `./gradlew verifyScreenshots` (golden PNGs in `screenshots/`, pixel diff with a 1.5 % tolerance,
-  diffs uploaded as a CI artifact) plus a Room migration test (1→2→3→4→5 against the exported schemas).
+  diffs uploaded as a CI artifact) plus a Room migration test (1→11 against the exported schemas, plus 10→11).
 - **1.8 streak insurance** writes skip logs tagged with the rule id over a rolling window (14 days back,
   60 ahead) on every launch, every daily worker run and every rule edit; deleting or ending a rule retracts only
   the skips it created, and a day you completed or un-skipped by hand is never touched again.
@@ -136,6 +139,9 @@ plus the advisory install-over-install rehearsal on an emulator. Details in the 
 
 ## Still open
 
-1. **Multi-device sync (7.3)** – encrypted backups + Drive folder give it a base to stand on.
+1. **Multi-device sync (7.3)** – the append-only journal and Drive folder are groundwork, but no
+   event transport/replay exists. `DriveSync` remains **full-archive backup/restore** (plus
+   two-way Markdown note files); it must not be described as multi-device sync until events are
+   actually exchanged and replayed.
 
-Further candidates — a wrist-shot contact sheet, service warnings at wear time, SQLite export, a "done next habit" quick tile and a vault widget — live in [IDEAS.md](IDEAS.md) with an honest effort estimate for each, together with the **B-list** of next majors (0.3.6 watch lifecycle / wishlist / `uptime` / rotation challenges ✅ → 0.3.8 focus & feel: ambient sounds / ASCII garden / screensaver / app lock ✅ → 0.4.0 challenges / gallery & documents / collection report / contact sheet ✅ → 0.4.1 LAN shell / done tile / vault widget / water warnings / SQLite export ✅ → 0.5.0 multi-device sync). The 0.3.5 bundle (strength, minimum & ramp, stacking, comeback nudge, evening summary, life areas) is ticked there.
+Further candidates — a wrist-shot contact sheet, service warnings at wear time, SQLite export, a "done next habit" quick tile and a vault widget — live in [IDEAS.md](IDEAS.md) with an honest effort estimate for each, together with the **B-list** of next majors (0.3.6 watch lifecycle / wishlist / `uptime` / rotation challenges ✅ → 0.3.8 focus & feel: ambient sounds / ASCII garden / screensaver / app lock ✅ → 0.4.0 challenges / gallery & documents / collection report / contact sheet ✅ → 0.4.1 LAN shell / done tile / vault widget / water warnings / SQLite export ✅ → 0.5.0 planner, full watch-media archives, onboarding link/merge, two-way Markdown notes and append-only journal groundwork ✅). The 0.3.5 bundle (strength, minimum & ramp, stacking, comeback nudge, evening summary, life areas) is ticked there.

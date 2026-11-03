@@ -311,6 +311,11 @@
                 android:value="androidx.startup"
                 tools:node="remove" />
         </provider>
+        <!-- One-off planner task reminders (0.5.0). Explicit PendingIntent only. -->
+        <receiver
+            android:name=".reminders.PlannerReminderReceiver"
+            android:exported="false" />
+
     </application>
 
 </manifest>

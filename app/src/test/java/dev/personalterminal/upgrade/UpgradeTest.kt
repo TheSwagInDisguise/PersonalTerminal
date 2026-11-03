@@ -10,6 +10,11 @@ import androidx.test.platform.app.InstrumentationRegistry
 import dev.personalterminal.PersonalTerminalApp
 import dev.personalterminal.data.backup.BackupManager
 import dev.personalterminal.data.db.AppDatabase
+import dev.personalterminal.data.db.PlannerNote
+import dev.personalterminal.data.db.PlannerProject
+import dev.personalterminal.data.db.PlannerTask
+import dev.personalterminal.data.db.WatchDocument
+import dev.personalterminal.data.db.WatchPhoto
 import dev.personalterminal.data.prefs.UserPrefs
 import dev.personalterminal.data.repo.HabitRepository
 import dev.personalterminal.data.repo.WatchRepository
@@ -68,7 +73,7 @@ class UpgradeTest {
     private val migrations get() = arrayOf(
         AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4,
         AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7,
-        AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10,
+        AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10, AppDatabase.MIGRATION_10_11,
     )
 
     @Test fun `every schema version the app ever shipped upgrades to the current one without losing a row`() {
@@ -150,15 +155,37 @@ class UpgradeTest {
         watches.strapFitSummaries(today)
         assertTrue(ctx("csv"), watches.wearLogCsv().lines().size >= 2)
 
+        // planner + FULL watch media coverage (schema 7 backup / restore)
+        val projectId = db.plannerProjectDao().insert(PlannerProject(name = "upgrade planner"))
+        val taskId = db.plannerTaskDao().insert(
+            PlannerTask(title = "one-off", projectId = projectId, priority = "HIGH", checklist = "0|check docs", dueDay = today.toEpochDay()),
+        )
+        db.plannerNoteDao().insert(PlannerNote(title = "note", body = "# heading", projectId = projectId, taskId = taskId, lastSyncedBody = "# heading"))
+        assertEquals(ctx("planner project"), 1, db.plannerProjectDao().getAll().size)
+        assertEquals(ctx("planner task"), 1, db.plannerTaskDao().getAll().size)
+        assertEquals(ctx("planner note"), 1, db.plannerNoteDao().getAll().size)
+        val photo = File(watches.photoDir, "upgrade_gallery.jpg").apply { writeBytes(byteArrayOf(1, 2, 3, 4)) }
+        val doc = File(watches.docDir, "upgrade_receipt.pdf").apply { writeBytes(byteArrayOf(5, 6, 7, 8)) }
+        db.watchPhotoDao().insert(WatchPhoto(watchId = 1, path = photo.name, kind = "dial"))
+        db.watchDocumentDao().insert(WatchDocument(watchId = 1, path = doc.name, kind = "receipt", label = "receipt"))
+
         // backup round trip on the migrated data (what Drive sync does an hour after the update)
         val prefs = UserPrefs(app)
         val backups = BackupManager(app, db, prefs, watches, "test")
         val bytes = ByteArrayOutputStream().also { backups.writeArchive(it) }.toByteArray()
         val v = backups.verifyArchive(ByteArrayInputStream(bytes))
         assertEquals(ctx("backup habit count"), all.size, v.habits)
+        assertEquals(ctx("backup planner tasks"), 1, v.plannerTasks)
+        assertEquals(ctx("backup planner notes"), 1, v.plannerNotes)
+        assertEquals(ctx("backup document present"), 1, v.documentsPresent)
+        assertTrue(ctx("backup gallery photo present"), v.photosPresent >= 1)
         val message = backups.restoreArchive(ByteArrayInputStream(bytes))
         assertTrue(ctx("restore message: $message"), message.startsWith("restored"))
         assertEquals(ctx("habits after restore"), all.size, habits.allHabits().size)
+        assertEquals(ctx("planner tasks after restore"), 1, db.plannerTaskDao().getAll().size)
+        assertEquals(ctx("planner notes after restore"), 1, db.plannerNoteDao().getAll().size)
+        assertEquals(ctx("gallery photo bytes after restore"), listOf<Byte>(1, 2, 3, 4), File(watches.photoDir, photo.name).readBytes().toList())
+        assertEquals(ctx("document bytes after restore"), listOf<Byte>(5, 6, 7, 8), File(watches.docDir, doc.name).readBytes().toList())
     }
 
     // ------------------------------------------------------------------ schema-driven seeding

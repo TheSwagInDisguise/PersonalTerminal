@@ -22,8 +22,9 @@ class Converters {
         Routine::class, Habit::class, HabitLog::class, ShieldUse::class, Watch::class, WearLog::class, XpEvent::class,
         FocusSession::class, WatchService::class, AccuracyReading::class, Strap::class, SkipRule::class, SleepLog::class, StrapSwap::class,
         WatchPhoto::class, WatchDocument::class, SyncEvent::class,
+        PlannerProject::class, PlannerTask::class, PlannerNote::class,
     ],
-    version = 10,
+    version = 11,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -45,6 +46,9 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun watchPhotoDao(): WatchPhotoDao
     abstract fun watchDocumentDao(): WatchDocumentDao
     abstract fun syncEventDao(): SyncEventDao
+    abstract fun plannerProjectDao(): PlannerProjectDao
+    abstract fun plannerTaskDao(): PlannerTaskDao
+    abstract fun plannerNoteDao(): PlannerNoteDao
 
     /** Wipes every table inside one transaction (used when restoring a backup). */
     suspend fun clearAllData() = withTransaction {
@@ -73,7 +77,7 @@ abstract class AppDatabase : RoomDatabase() {
 
         fun get(context: Context): AppDatabase = INSTANCE ?: synchronized(this) {
             INSTANCE ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, NAME)
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build()
                 .also { INSTANCE = it }
@@ -97,6 +101,37 @@ abstract class AppDatabase : RoomDatabase() {
                         "watchId INTEGER NOT NULL, path TEXT NOT NULL, kind TEXT NOT NULL, label TEXT NOT NULL, createdAt INTEGER NOT NULL)",
                 )
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_watch_documents_watchId ON watch_documents (watchId)")
+            }
+        }
+
+        /** 0.4.2 → 0.5.0: planner (projects, one-off tasks, Markdown notes). Additive only. */
+        val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `planner_projects` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`name` TEXT NOT NULL, `notes` TEXT NOT NULL, `color` TEXT NOT NULL, `archived` INTEGER NOT NULL, " +
+                        "`createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL)",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_planner_projects_name` ON `planner_projects` (`name`)")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `planner_tasks` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`title` TEXT NOT NULL, `notes` TEXT NOT NULL, `projectId` INTEGER, `priority` TEXT NOT NULL, " +
+                        "`dueDay` INTEGER, `reminderAt` INTEGER, `checklist` TEXT NOT NULL, `links` TEXT NOT NULL, " +
+                        "`attachments` TEXT NOT NULL, `completed` INTEGER NOT NULL, `completedAt` INTEGER, " +
+                        "`createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL)",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_planner_tasks_projectId` ON `planner_tasks` (`projectId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_planner_tasks_dueDay` ON `planner_tasks` (`dueDay`)")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `planner_notes` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`title` TEXT NOT NULL, `body` TEXT NOT NULL, `projectId` INTEGER, `taskId` INTEGER, " +
+                        "`links` TEXT NOT NULL, `attachments` TEXT NOT NULL, `driveFileId` TEXT NOT NULL, " +
+                        "`lastSyncedBody` TEXT NOT NULL, `lastSyncedAt` INTEGER NOT NULL, `pendingRemoteBody` TEXT, " +
+                        "`pendingRemoteAt` INTEGER NOT NULL, `syncPaused` INTEGER NOT NULL, " +
+                        "`createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL)",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_planner_notes_projectId` ON `planner_notes` (`projectId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_planner_notes_taskId` ON `planner_notes` (`taskId`)")
             }
         }
 

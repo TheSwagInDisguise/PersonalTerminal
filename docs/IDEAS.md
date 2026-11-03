@@ -68,7 +68,8 @@ app. Generic mechanics only; nothing that copies another app's names, copy or br
 
 Suggested bundles: **0.3.5** ✅ = B1 + B2 + B4 + B5 + B6 (habit loop, shipped) · **0.3.6** ✅ = B7 + B8 + B9 + B11 (watches, shipped) ·
 **0.3.7** ✅ = upgrade gate (pinned release key, `UpgradeTest` / `LegacyBackupTest` / `ContractTest`, advisory install-over-install job) ·
-**0.3.8** ✅ = B12 + B13 + B14 + B15 (focus & feel, shipped) · **0.4.0** ✅ = B3 + B10 (challenges / documents) · **0.4.1** ✅ = B16 + A7 + A10 + A12 + A15 (LAN release).
+**0.3.8** ✅ = B12 + B13 + B14 + B15 (focus & feel, shipped) · **0.4.0** ✅ = B3 + B10 (challenges / documents) · **0.4.1** ✅ = B16 + A7 + A10 + A12 + A15 (LAN release) ·
+**0.5.0** ✅ = planner (one-off tasks, projects, priorities, due dates, reminders, checklists, Markdown notes with preview/links), full watch-media archives, onboarding restore/link/merge, two-way Drive Markdown with a conflict pause, and append-only `SyncJournal` groundwork. Multi-device sync remains open — no event transport/replay yet (see [V1.0_PLAN.md](V1.0_PLAN.md)).
 Every version from here on is released one bundle at a time and has to pass the gate before it is published (see README › Upgrade gate).
 
 ## Polish audit (0.3.2)

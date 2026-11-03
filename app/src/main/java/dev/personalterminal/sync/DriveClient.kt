@@ -1,5 +1,6 @@
 package dev.personalterminal.sync
 
+import com.google.api.client.http.ByteArrayContent
 import com.google.api.client.http.FileContent
 import com.google.api.client.http.HttpRequestInitializer
 import com.google.api.client.http.javanet.NetHttpTransport
@@ -9,6 +10,7 @@ import com.google.api.services.drive.model.File as DriveFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.ByteArrayOutputStream
 import java.io.OutputStream
 
 /**
@@ -54,13 +56,51 @@ class DriveClient(private val accessToken: String) {
         created.toRemote()
     }
 
+    /** Only full-archive backups; two-way Markdown notes live in the same folder but are not backups. */
     suspend fun list(folderId: String): List<RemoteBackup> = withContext(Dispatchers.IO) {
         val q = "'$folderId' in parents and trashed=false"
         drive.files().list().setQ(q).setSpaces("drive")
             .setOrderBy("modifiedTime desc")
             .setFields("files(id,name,size,modifiedTime)")
             .setPageSize(50)
+            .execute().files.orEmpty().filter { isBackup(it.name ?: "") }.map { it.toRemote() }
+    }
+
+    /** Two-way editable Markdown mirror of a planner note (0.5.0). */
+    suspend fun listMarkdown(folderId: String): List<RemoteBackup> = withContext(Dispatchers.IO) {
+        val q = "'$folderId' in parents and mimeType='$MARKDOWN_MIME' and trashed=false"
+        drive.files().list().setQ(q).setSpaces("drive")
+            .setOrderBy("modifiedTime desc")
+            .setFields("files(id,name,size,modifiedTime)")
+            .setPageSize(200)
             .execute().files.orEmpty().map { it.toRemote() }
+    }
+
+    suspend fun findMarkdown(folderId: String, name: String): RemoteBackup? = withContext(Dispatchers.IO) {
+        val q = "'$folderId' in parents and name='${name.replace("'", "\\'")}' and trashed=false"
+        drive.files().list().setQ(q).setSpaces("drive")
+            .setFields("files(id,name,size,modifiedTime)")
+            .setPageSize(1)
+            .execute().files.orEmpty().firstOrNull()?.toRemote()
+    }
+
+    /** Create or update a plain-text Markdown file; returns its Drive id for the note row. */
+    suspend fun uploadText(folderId: String, name: String, text: String, existingId: String? = null): RemoteBackup = withContext(Dispatchers.IO) {
+        val meta = DriveFile().apply {
+            this.name = name
+            mimeType = MARKDOWN_MIME
+            if (existingId == null) parents = listOf(folderId)
+        }
+        val content = ByteArrayContent(MARKDOWN_MIME, text.toByteArray(Charsets.UTF_8))
+        val req = if (existingId == null) drive.files().create(meta, content) else drive.files().update(existingId, meta, content)
+        req.setFields("id,name,size,modifiedTime").execute().toRemote()
+    }
+
+    suspend fun downloadText(fileId: String): String = withContext(Dispatchers.IO) {
+        ByteArrayOutputStream().use { out ->
+            download(fileId, out)
+            out.toString("UTF-8")
+        }
     }
 
     suspend fun download(fileId: String, out: OutputStream) = withContext(Dispatchers.IO) {
@@ -88,5 +128,7 @@ class DriveClient(private val accessToken: String) {
         const val FOLDER_NAME = "Personal Terminal Backups"
         const val FOLDER_MIME = "application/vnd.google-apps.folder"
         const val KEEP_BACKUPS = 10
+        const val MARKDOWN_MIME = "text/markdown"
+        fun isBackup(name: String): Boolean = name.endsWith(".ptbak") || name.endsWith(".ptbakx")
     }
 }

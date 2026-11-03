@@ -63,6 +63,7 @@ fun BootScreen(app: PersonalTerminalApp, onDone: () -> Unit) {
     var remote by remember { mutableStateOf<List<dev.personalterminal.sync.DriveClient.RemoteBackup>?>(null) }
     var passphrase by remember { mutableStateOf("") }
     var pendingRestoreId by remember { mutableStateOf<String?>(null) }
+    var pendingMergeId by remember { mutableStateOf<String?>(null) }
     var pendingAfterConsent by remember { mutableStateOf<(suspend (String) -> Unit)?>(null) }
     val consentLauncher = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()) { result ->
         val token = if (result.resultCode == android.app.Activity.RESULT_OK) app.googleAuth.tokenFromConsentResult(result.data) else null
@@ -79,6 +80,37 @@ fun BootScreen(app: PersonalTerminalApp, onDone: () -> Unit) {
         app.driveSync.listRemote(token).onSuccess { remote = it; restoreLog = if (it.isEmpty()) "no backups in drive for this account" else "found ${it.size} backups" }
             .onFailure { e -> if (e is dev.personalterminal.sync.DriveSync.ConsentRequired) handleConsent(e.intent) { t -> listRemote(t) } else restoreLog = "list failed: ${e.message}" }
     }
+    /** Onboarding path 2: link Drive without touching this install's local data. */
+    suspend fun link(token: String? = null) {
+        when (val r = app.driveSync.linkAccount(token)) {
+            is dev.personalterminal.sync.DriveSync.Outcome.Success -> {
+                restoreLog = r.message
+                app.prefs.setRestoreOffered(true)
+                app.prefs.setOnboarded(true)
+                onDone()
+            }
+            is dev.personalterminal.sync.DriveSync.Outcome.Failure -> restoreLog = r.message
+            is dev.personalterminal.sync.DriveSync.Outcome.NeedsConsent -> handleConsent(r.intent) { t -> link(t) }
+        }
+    }
+
+    /** Onboarding path 3: merge an independent install's archive into this one. */
+    suspend fun merge(id: String, token: String? = null) {
+        when (val r = app.driveSync.linkAndMerge(id, token, passphrase.takeIf { it.isNotBlank() })) {
+            is dev.personalterminal.sync.DriveSync.Outcome.Success -> {
+                restoreLog = r.message
+                app.prefs.setRestoreOffered(true)
+                app.prefs.setOnboarded(true)
+                onDone()
+            }
+            is dev.personalterminal.sync.DriveSync.Outcome.Failure -> {
+                restoreLog = r.message
+                if ("passphrase" in r.message) { pendingRestoreId = id; pendingMergeId = id }
+            }
+            is dev.personalterminal.sync.DriveSync.Outcome.NeedsConsent -> handleConsent(r.intent) { t -> merge(id, t) }
+        }
+    }
+
     suspend fun restore(id: String, token: String? = null) {
         when (val r = app.driveSync.restoreRemote(id, token, passphrase.takeIf { it.isNotBlank() })) {
             is dev.personalterminal.sync.DriveSync.Outcome.Success -> {
@@ -115,7 +147,13 @@ fun BootScreen(app: PersonalTerminalApp, onDone: () -> Unit) {
         }
         if (shown >= bootLines.size && restoreMode) {
             Spacer(Modifier.height(24.dp))
-            Text("restore from google drive", color = p.yellow, style = MaterialTheme.typography.bodyMedium)
+            Text("restore / link / merge", color = p.yellow, style = MaterialTheme.typography.bodyMedium)
+            Spacer(Modifier.height(4.dp))
+            Text("# restore replaces this install · link keeps it · merge adds another install's archive", color = p.fgDim, style = MaterialTheme.typography.bodySmall)
+            Spacer(Modifier.height(6.dp))
+            TermButton("link drive only (keep this install)", color = p.cyan, enabled = !busy, onClick = {
+                scope.launch { busy = true; link(); busy = false }
+            })
             Spacer(Modifier.height(8.dp))
             if (!app.googleAuth.isConfigured) Text("# drive sync is not configured in this build", color = p.red, style = MaterialTheme.typography.bodySmall)
             val list = remote
@@ -140,13 +178,21 @@ fun BootScreen(app: PersonalTerminalApp, onDone: () -> Unit) {
                             Text("${java.time.Instant.ofEpochMilli(b.modifiedAt).atZone(java.time.ZoneId.systemDefault()).toLocalDate()} · ${b.size / 1024} KB", color = p.fgDim, style = MaterialTheme.typography.labelSmall)
                         }
                         TermButton("restore", color = p.green, enabled = !busy, onClick = { scope.launch { busy = true; restore(b.id); busy = false } })
+                        TermButton("merge", color = p.cyan, enabled = !busy, onClick = { scope.launch { busy = true; merge(b.id); busy = false } })
                     }
                 }
                 if (pendingRestoreId != null) {
                     Spacer(Modifier.height(6.dp))
                     TermTextField(value = passphrase, onValueChange = { passphrase = it }, label = "archive passphrase", visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), imeAction = ImeAction.Done)
                     Spacer(Modifier.height(4.dp))
-                    TermButton("unlock & restore", color = p.green, enabled = passphrase.isNotBlank() && !busy, onClick = { scope.launch { busy = true; restore(pendingRestoreId!!); busy = false } })
+                    TermButton(if (pendingMergeId != null) "unlock & merge" else "unlock & restore", color = p.green, enabled = passphrase.isNotBlank() && !busy, onClick = {
+                        scope.launch {
+                            busy = true
+                            val id = pendingRestoreId!!
+                            if (pendingMergeId != null) merge(id) else restore(id)
+                            busy = false
+                        }
+                    })
                 }
             }
             restoreLog?.let { Spacer(Modifier.height(6.dp)); Text("# $it", color = if ("fail" in it || "not" in it) p.red else p.green, style = MaterialTheme.typography.bodySmall) }

@@ -36,6 +36,8 @@ class WatchRepository(private val context: Context, private val db: AppDatabase)
     private val swapDao = db.strapSwapDao()
 
     val photoDir: File get() = File(context.filesDir, PHOTO_DIR).apply { mkdirs() }
+    /** Receipts / warranties / other documents (0.4.0), included in full archives since 0.5.0. */
+    val docDir: File get() = File(context.filesDir, DOC_DIR).apply { mkdirs() }
 
     /** The collection: owned or away for service. Sold and wishlist pieces are excluded. */
     fun observeWatches(): Flow<List<Watch>> = watchDao.observeActive()
@@ -437,7 +439,7 @@ class WatchRepository(private val context: Context, private val db: AppDatabase)
     /** Copies a receipt / warranty / other document raw into `filesDir/watch_docs`. */
     suspend fun addWatchDocument(watchId: Long, src: android.net.Uri, kind: String, label: String): Boolean = withContext(Dispatchers.IO) {
         runCatching {
-            val dir = File(context.filesDir, "watch_docs").apply { mkdirs() }
+            val dir = docDir
             val safe = label.replace(Regex("[^A-Za-z0-9._ -]"), "_").trim().ifBlank { kind.ifBlank { "doc" } }
             val name = "${System.currentTimeMillis()}_$safe"
             context.contentResolver.openInputStream(src)?.use { input ->
@@ -449,13 +451,16 @@ class WatchRepository(private val context: Context, private val db: AppDatabase)
     }
 
     suspend fun deleteWatchDocument(d: WatchDocument) = withContext(Dispatchers.IO) {
-        runCatching { File(context.filesDir, "watch_docs/${d.path}").delete() }
+        runCatching { docFile(d.path).delete() }
         db.watchDocumentDao().delete(d)
     }
 
-    fun documentFile(d: WatchDocument): File = File(context.filesDir, "watch_docs/${d.path}")
+    fun documentFile(d: WatchDocument): File = docFile(d.path)
+    /** Absolute file for a stored relative document path (flattened, no traversal). */
+    fun docFile(relative: String): File = File(docDir, File(relative).name)
 
     companion object {
         const val PHOTO_DIR = "watch_photos"
+        const val DOC_DIR = "watch_docs"
     }
 }

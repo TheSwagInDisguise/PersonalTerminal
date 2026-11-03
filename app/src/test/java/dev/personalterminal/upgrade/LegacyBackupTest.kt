@@ -93,6 +93,8 @@ class LegacyBackupTest {
             assertEquals(ctx("re-export habits"), v.habits, again.habits)
             assertEquals(ctx("re-export watches"), v.watches, again.watches)
             assertTrue(ctx("re-export logs"), again.logs >= v.logs)
+            assertEquals(ctx("legacy archive has no planner rows"), 0, again.plannerTasks)
+            assertEquals(ctx("legacy archive has no planner notes"), 0, again.plannerNotes)
         }
     }
 }

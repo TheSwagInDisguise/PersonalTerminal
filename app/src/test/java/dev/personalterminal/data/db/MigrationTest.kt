@@ -27,7 +27,7 @@ class MigrationTest {
     val helper = MigrationTestHelper(InstrumentationRegistry.getInstrumentation(), AppDatabase::class.java, emptyList(), FrameworkSQLiteOpenHelperFactory())
 
     @Test
-    fun `1 to 10 keeps data and matches the exported schema`() {
+    fun `1 to 11 keeps data and matches the exported schema`() {
         helper.createDatabase(dbName, 1).apply {
             execSQL("INSERT INTO routines (id, name, icon, position, createdAt) VALUES (1, 'morning', '☼', 0, 1)")
             execSQL("INSERT INTO habits (id, name, type, target, unit, schedule, daysMask, timesPerWeek, routineId, color, position, archived, createdAt, notes) VALUES (1, 'stretch', 'CHECKBOX', 1, '', 'DAILY', 127, 3, 1, 'green', 0, 0, 1, '')")
@@ -37,7 +37,7 @@ class MigrationTest {
             close()
         }
         // validateDroppedTables = true → any difference to 10.json fails the test
-        val db = helper.runMigrationsAndValidate(dbName, 10, true, AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10)
+        val db = helper.runMigrationsAndValidate(dbName, 11, true, AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10, AppDatabase.MIGRATION_10_11)
         db.query("SELECT negative, reminderMinutes, healthMetric, checkIn FROM habits WHERE id = 1").use { c ->
             assertTrue(c.moveToFirst()); assertEquals(0, c.getInt(0)); assertEquals(-1, c.getInt(1)); assertEquals("", c.getString(2)); assertEquals(0, c.getInt(3))
         }
@@ -65,7 +65,7 @@ class MigrationTest {
 
         // And Room itself opens the migrated file happily with the real DAOs.
         val room = Room.databaseBuilder(ApplicationProvider.getApplicationContext(), AppDatabase::class.java, dbName)
-            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10).allowMainThreadQueries().build()
+            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10, AppDatabase.MIGRATION_10_11).allowMainThreadQueries().build()
         runBlocking {
             assertEquals(1, room.habitDao().getAll().size)
             room.habitDao().update(room.habitDao().getById(1)!!.copy(checkIn = true, type = HabitType.CHECKLIST, checklist = "shoes\ntowel", timeOfDay = "MORNING"))
@@ -164,6 +164,25 @@ class MigrationTest {
         db.query("SELECT status, statusDay, soldPrice, targetPrice, savedSoFar, link, powerReserveHours, complications, purchasePrice FROM watches WHERE id = 7").use { c ->
             assertTrue(c.moveToFirst()); assertEquals("owned", c.getString(0)); assertEquals(0L, c.getLong(1)); assertTrue(c.isNull(2)); assertTrue(c.isNull(3))
             assertEquals(0.0, c.getDouble(4), 0.0); assertEquals("", c.getString(5)); assertEquals(0, c.getInt(6)); assertEquals("", c.getString(7)); assertEquals(9800.0, c.getDouble(8), 0.0)
+        }
+        db.close()
+    }
+
+    @Test
+    fun `10 to 11 adds the planner tables without losing journal rows`() {
+        val name = "migration-10-11.db"
+        helper.createDatabase(name, 10).apply {
+            execSQL("INSERT INTO sync_log (device, seq, ts, entity, rowId, op, payload) VALUES ('phone', 1, 1, 'habits', '1', 'u', '{}')")
+            close()
+        }
+        val db = helper.runMigrationsAndValidate(name, 11, true, AppDatabase.MIGRATION_10_11)
+        db.query("SELECT COUNT(*) FROM sync_log").use { c -> assertTrue(c.moveToFirst()); assertEquals(1, c.getInt(0)) }
+        listOf("planner_projects", "planner_tasks", "planner_notes").forEach { t ->
+            db.query("SELECT COUNT(*) FROM `$t`").use { c -> assertTrue(c.moveToFirst()); assertEquals(0, c.getInt(0)) }
+        }
+        db.execSQL("INSERT INTO planner_tasks (id, title, notes, priority, checklist, links, attachments, completed, createdAt, updatedAt) VALUES (1, 'one off', '', 'HIGH', '0|step', '', '', 0, 1, 1)")
+        db.query("SELECT priority, checklist, completed FROM planner_tasks WHERE id = 1").use { c ->
+            assertTrue(c.moveToFirst()); assertEquals("HIGH", c.getString(0)); assertEquals("0|step", c.getString(1)); assertEquals(0, c.getInt(2))
         }
         db.close()
     }

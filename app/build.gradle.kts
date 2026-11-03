@@ -53,6 +53,8 @@ val appVersionCode: Int = ciBuildNumber ?: 1
 
 // Release signing: provided through env vars / local.properties (CI decodes the keystore from secrets).
 fun secret(name: String): String? = localProps.getProperty(name) ?: System.getenv(name)
+// Low-memory sandboxes can pass -Ppt.testHeapSize=700m; CI keeps Robolectric's 1536m default.
+val unitTestHeapSize: String = providers.gradleProperty("pt.testHeapSize").getOrElse("1536m")
 val releaseStoreFile: String? = secret("RELEASE_STORE_FILE")
 val hasReleaseKey: Boolean = !releaseStoreFile.isNullOrBlank() && file(releaseStoreFile).exists()
 val releaseStorePassword: String? = secret("RELEASE_STORE_PASSWORD")
@@ -163,7 +165,7 @@ android {
     testOptions {
         // Robolectric renders the real Compose screens on the JVM (used by the screenshot suite).
         unitTests.isIncludeAndroidResources = true
-        unitTests.all { it.maxHeapSize = "1536m" }
+        unitTests.all { it.maxHeapSize = unitTestHeapSize }
     }
 }
 

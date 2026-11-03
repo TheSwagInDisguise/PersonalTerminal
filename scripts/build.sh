@@ -17,6 +17,7 @@ case "$target" in
   *) echo "unknown target: $target"; exit 1 ;;
 esac
 
+# On a <2 GB machine: ./gradlew -Ppt.testHeapSize=700m testDebugUnitTest --console=plain
 ./gradlew --console=plain "${tasks[@]}"
 
 echo

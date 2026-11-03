@@ -42,3 +42,4 @@ action:dev.personalterminal.action.BACKUP
 
 # Content providers.
 authority:${applicationId}.fileprovider
+.reminders.PlannerReminderReceiver

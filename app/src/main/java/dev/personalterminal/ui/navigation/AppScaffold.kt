@@ -56,6 +56,7 @@ import dev.personalterminal.ui.watch.StrapsScreen
 import dev.personalterminal.ui.watch.WatchStatsScreen
 import dev.personalterminal.ui.settings.ImportScreen
 import dev.personalterminal.ui.profile.ProfileScreen
+import dev.personalterminal.ui.planner.PlannerScreen
 import dev.personalterminal.ui.routines.RoutinesScreen
 import dev.personalterminal.ui.settings.SettingsScreen
 import dev.personalterminal.ui.theme.Term
@@ -173,6 +174,7 @@ fun AppScaffold(app: PersonalTerminalApp, settings: Settings, startRoute: String
                 composable(Routes.IMPORT) { ImportScreen(app, nav) }
                 composable(Routes.JOURNAL) { JournalScreen(app, nav) }
                 composable(Routes.GARDEN) { dev.personalterminal.ui.garden.GardenScreen(app, nav) }
+                composable(Routes.PLANNER) { PlannerScreen(app, nav) }
                 composable(Routes.HABIT_DETAIL, arguments = listOf(navArgument("id") { type = NavType.LongType })) {
                     HabitDetailScreen(app, nav, it.arguments?.getLong("id") ?: 0L)
                 }

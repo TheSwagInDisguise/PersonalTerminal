@@ -31,6 +31,7 @@ object Routes {
     const val IMPORT = "import"
     const val JOURNAL = "journal"
     const val GARDEN = "garden"
+    const val PLANNER = "planner"
 
     fun habitEdit(id: Long = 0, routineId: Long? = null, name: String? = null) =
         "habit/edit?id=$id&routineId=${routineId ?: -1}" + (name?.let { "&name=${android.net.Uri.encode(it)}" } ?: "")

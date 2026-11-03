@@ -13,10 +13,11 @@ import kotlinx.serialization.json.Json
 data class SettingsValue(val key: String, val value: String)
 
 /**
- * 7.3 — append-only sync journal. Live row writes call [upsert]/[delete]; the journal stamps
- * the next per-device sequence and stores the row's JSON so a peer can replay it with
- * last-writer-wins on `(ts, device)`. Bulk paths (restore, seed, import) deliberately do not
- * journal — archives move whole state, the journal moves live edits.
+ * 7.3 — append-only sync journal GROUNDWORK. Live row writes call [upsert]/[delete]; the
+ * journal stamps the next per-device sequence and stores the row's JSON for a future peer to
+ * replay with last-writer-wins on `(ts, device)`. Event transport/replay is NOT implemented in
+ * 0.5.0: DriveSync still moves whole backup archives. Bulk paths (restore, merge, seed, import)
+ * deliberately do not journal — archives move whole state.
  *
  * Injection: repositories expose `var journal: SyncJournal?` (null in tests) and the app
  * wires it once in `onCreate`.
@@ -73,4 +74,37 @@ class SyncJournal(private val db: AppDatabase, private val prefs: UserPrefs) {
     suspend fun delete(entity: String, rowId: Long): Unit = deleteRow(entity, rowId.toString())
 
     suspend fun deleteRow(entity: String, rowId: String): Unit = emit(entity, rowId, "d", "")
+}
+
+/** Conflict record carried by the same append-only journal (no transport/replay in 0.5.0). */
+@Serializable
+data class NoteConflictEvent(
+    val noteId: Long,
+    val driveFileId: String,
+    val localBody: String,
+    val remoteBody: String,
+    val at: Long,
+)
+
+/** Both versions of a conflicting Markdown note are journaled before note sync pauses. */
+suspend fun SyncJournal.noteConflict(note: dev.personalterminal.data.db.PlannerNote, remoteBody: String) {
+    emit(
+        "note_conflict",
+        "planner_notes:${note.id}",
+        "c",
+        json.encodeToString(
+            NoteConflictEvent(
+                noteId = note.id,
+                driveFileId = note.driveFileId,
+                localBody = note.body,
+                remoteBody = remoteBody,
+                at = System.currentTimeMillis(),
+            ),
+        ),
+    )
+}
+
+/** The user's conflict choice is appended too, so neither version is silently dropped. */
+suspend fun SyncJournal.noteResolved(note: dev.personalterminal.data.db.PlannerNote, choice: String) {
+    emit("note_resolved", "planner_notes:${note.id}", "r", json.encodeToString(SettingsValue("choice", choice)))
 }

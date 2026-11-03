@@ -206,6 +206,11 @@ fun ProfileScreen(app: PersonalTerminalApp, nav: NavHostController) {
                 TermButton("insights", color = p.purple, onClick = { nav.navigate(Routes.INSIGHTS) }, modifier = Modifier.weight(1f))
                 TermButton("journal", color = p.green, onClick = { nav.navigate(Routes.JOURNAL) }, modifier = Modifier.weight(1f))
             }
+            Spacer(Modifier.height(4.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TermButton("planner", color = p.yellow, onClick = { nav.navigate(Routes.PLANNER) }, modifier = Modifier.weight(1f))
+                TermButton("garden", color = p.green, onClick = { nav.navigate(Routes.GARDEN) }, modifier = Modifier.weight(1f))
+            }
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
