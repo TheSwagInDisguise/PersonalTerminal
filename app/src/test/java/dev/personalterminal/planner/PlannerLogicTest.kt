@@ -70,6 +70,32 @@ class PlannerLogicTest {
         assertEquals("Heading packed bold and code quote drive", Markdown.plain("# Heading\n\n- [x] packed\n- **bold** and `code`\n> quote\n[drive](https://example.com)"))
     }
 
+    @Test fun `markdown parses tables, ordered lists, rules, strikethrough and images`() {
+        val src = """
+            # Heading
+            1. first
+            2. second
+            | item | qty |
+            | --- | --- |
+            | pen | 2 |
+            ---
+            ~~gone~~ and ![photo](content://media/9) and [drive](https://example.com)
+        """.trimIndent()
+        val lines = Markdown.parse(src)
+        assertTrue(lines.any { it.kind == MarkdownKind.ORDERED && it.marker == "1. " })
+        val table = lines.first { it.kind == MarkdownKind.TABLE }
+        assertEquals(listOf("item", "qty"), table.cells)
+        assertTrue(table.tableHeader)
+        assertTrue(lines.any { it.kind == MarkdownKind.RULE })
+        assertTrue(lines.any { line -> line.spans.any { it.strike && it.text == "gone" } })
+        assertEquals(listOf(PlannerRef("photo", "content://media/9")), Markdown.images(src))
+        assertEquals(listOf(PlannerRef("drive", "https://example.com")), Markdown.links(src))
+        val plain = Markdown.plain(src)
+        assertTrue(plain.contains("gone"))
+        assertTrue(plain.contains("photo"))
+        assertFalse(plain.contains("---"))
+    }
+
     @Test fun `two-way markdown sync applies one-sided edits without clobbering`() {
         val base = PlannerNote(id = 1, title = "trip", body = "# v1", lastSyncedBody = "# v1")
         assertTrue(NoteMarkdownSync.resolve(base, "# v2", 100L) is NoteSyncResolution.ApplyRemote)

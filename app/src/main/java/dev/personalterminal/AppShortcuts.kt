@@ -7,7 +7,7 @@ import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
 
 /**
- * Launcher long-press shortcuts (`timer`, `wear`, `habit add`, `review`). Registered dynamically so
+ * Launcher long-press shortcuts (`timer`, `wear`, `habit add`, `review`, `planner`). Registered dynamically so
  * the same code works for the `.debug` application id; users can pin any of them to the home screen.
  */
 object AppShortcuts {
@@ -29,6 +29,7 @@ object AppShortcuts {
                 shortcut("wear", context.getString(R.string.shortcut_wear_short), context.getString(R.string.shortcut_wear_long), R.drawable.ic_shortcut_watch, "wear/log"),
                 shortcut("add", context.getString(R.string.shortcut_add_short), context.getString(R.string.shortcut_add_long), R.drawable.ic_shortcut_add, "habit/edit"),
                 shortcut("review", context.getString(R.string.shortcut_review_short), context.getString(R.string.shortcut_review_long), R.drawable.ic_shortcut_review, "review"),
+                shortcut("planner", context.getString(R.string.shortcut_planner_short), context.getString(R.string.shortcut_planner_long), R.drawable.ic_shortcut_add, "planner"),
             ),
         )
     }

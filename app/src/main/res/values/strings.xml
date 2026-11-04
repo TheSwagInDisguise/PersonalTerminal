@@ -37,5 +37,7 @@
     <string name="shortcut_add_long">Create a new habit</string>
     <string name="shortcut_review_short">review</string>
     <string name="shortcut_review_long">Weekly review</string>
+    <string name="shortcut_planner_short">planner</string>
+    <string name="shortcut_planner_long">Tasks and Markdown notes</string>
     <string name="health_permissions_rationale">Personal Terminal reads steps, exercise, sleep and hydration from Health Connect only to tick off the habits you linked to them. Nothing is uploaded.</string>
 </resources>

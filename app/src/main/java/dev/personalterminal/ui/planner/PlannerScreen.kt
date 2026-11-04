@@ -63,11 +63,11 @@ private fun parseReminder(value: String): Long? = runCatching {
  * contextual links/attachments and two-way Drive Markdown with an explicit conflict pause.
  */
 @Composable
-fun PlannerScreen(app: PersonalTerminalApp, nav: NavHostController) {
+fun PlannerScreen(app: PersonalTerminalApp, nav: NavHostController, initialTab: String = "tasks") {
     val p = Term.palette
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    var tab by remember { mutableStateOf("tasks") }
+    var tab by remember { mutableStateOf(if (initialTab in listOf("tasks", "projects", "notes")) initialTab else "tasks") }
     var message by remember { mutableStateOf<String?>(null) }
 
     val projects by remember { app.planner.observeProjects() }.collectAsStateWithLifecycle(initialValue = emptyList())
@@ -135,6 +135,8 @@ private fun ProjectsTab(
         Spacer(Modifier.height(6.dp))
         TermTextField(value = notes, onValueChange = { notes = it }, label = "notes (markdown)", singleLine = false, placeholder = "# goals\n- [ ] paint")
         Spacer(Modifier.height(6.dp))
+        MarkdownToolbar(onInsert = { notes += it })
+        Spacer(Modifier.height(6.dp))
         TermButton("create", filled = true, enabled = name.isNotBlank(), onClick = {
             scope.launch {
                 app.planner.saveProject(PlannerProject(name = name.trim(), notes = notes))
@@ -174,8 +176,50 @@ private fun TasksTab(
     var checklist by remember { mutableStateOf("") }
     var projectId by remember { mutableStateOf<Long?>(null) }
     var links by remember { mutableStateOf("") }
+    var attachments by remember { mutableStateOf("") }
+    var editingId by remember { mutableStateOf<Long?>(null) }
+    var query by remember { mutableStateOf("") }
+    var showCompleted by remember { mutableStateOf(true) }
+    var sortBy by remember { mutableStateOf("created") }
 
-    TerminalPanel(title = "new one-off task") {
+    fun refsToText(refs: List<PlannerRef>) = refs.joinToString("\n") { "${it.label}\t${it.uri}" }
+    fun textToRefs(text: String) = text.lines().map { it.trim() }.filter { it.isNotEmpty() }
+        .map { PlannerRef(it.substringBefore('\t').trim().ifBlank { it }, it.substringAfter('\t', it).trim()) }
+    fun formatReminder(millis: Long?) = millis?.let {
+        java.time.Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDateTime().toString().replace('T', ' ').take(16)
+    } ?: ""
+    fun clearForm() {
+        editingId = null; title = ""; notes = ""; priority = PlannerPriority.NORMAL
+        due = ""; reminder = ""; checklist = ""; projectId = null; links = ""; attachments = ""
+    }
+    fun load(task: PlannerTask) {
+        editingId = task.id
+        title = task.title
+        notes = task.notes
+        priority = task.priorityValue
+        due = task.dueDate?.toString() ?: ""
+        reminder = formatReminder(task.reminderAt)
+        checklist = task.checklistItems.joinToString("\n") { it.label }
+        projectId = task.projectId
+        links = refsToText(parseRefs(task.links))
+        attachments = refsToText(parseRefs(task.attachments))
+    }
+
+    val visibleTasks = remember(tasks, query, showCompleted, sortBy) {
+        val filtered = tasks.filter { task ->
+            (showCompleted || !task.completed) &&
+                (query.isBlank() || task.title.contains(query, true) || task.notes.contains(query, true))
+        }
+        val comparator: Comparator<PlannerTask> = when (sortBy) {
+            "due" -> compareBy<PlannerTask> { it.dueDay ?: Long.MAX_VALUE }
+            "priority" -> compareByDescending<PlannerTask> { it.priorityValue.rank }
+            "title" -> compareBy<PlannerTask> { it.title.lowercase() }
+            else -> compareByDescending<PlannerTask> { it.createdAt }
+        }
+        filtered.sortedWith(comparator)
+    }
+
+    TerminalPanel(title = if (editingId == null) "new one-off task" else "edit one-off task") {
         TermTextField(value = title, onValueChange = { title = it }, label = "title", placeholder = "book the dentist")
         Spacer(Modifier.height(6.dp))
         Text("priority", color = p.fgDim, style = MaterialTheme.typography.labelSmall)
@@ -192,8 +236,15 @@ private fun TasksTab(
         Spacer(Modifier.height(6.dp))
         TermTextField(value = checklist, onValueChange = { checklist = it }, label = "checklist (one per line)", singleLine = false, placeholder = "call\nconfirm")
         Spacer(Modifier.height(6.dp))
+        TermTextField(value = notes, onValueChange = { notes = it }, label = "notes (markdown)", singleLine = false, placeholder = "# context\n- [ ] follow up")
+        Spacer(Modifier.height(6.dp))
+        MarkdownToolbar(onInsert = { notes += it })
+        Spacer(Modifier.height(6.dp))
         TermTextField(value = links, onValueChange = { links = it }, label = "context links (label<TAB>uri)", singleLine = false,
             placeholder = "habit\tpt://habit/1")
+        Spacer(Modifier.height(6.dp))
+        TermTextField(value = attachments, onValueChange = { attachments = it }, label = "attachments (label<TAB>uri)", singleLine = false,
+            placeholder = "receipt\tcontent://media/12")
         if (projects.isNotEmpty()) {
             Spacer(Modifier.height(6.dp))
             Text("project", color = p.fgDim, style = MaterialTheme.typography.labelSmall)
@@ -205,24 +256,43 @@ private fun TasksTab(
             }
         }
         Spacer(Modifier.height(8.dp))
-        TermButton("add task", filled = true, enabled = title.isNotBlank(), onClick = {
-            scope.launch {
-                val items = checklist.lines().map { it.trim() }.filter { it.isNotEmpty() }
-                val refs = links.lines().map { it.trim() }.filter { it.isNotEmpty() }
-                val task = PlannerTask(
-                    title = title.trim(), notes = notes, projectId = projectId,
-                    priority = priority.name, dueDay = parseDay(due), reminderAt = parseReminder(reminder),
-                    checklist = items.joinToString("\n") { "0|$it" },
-                    links = encodeRefs(refs.map { PlannerRef(it.substringBefore('\t').trim().ifBlank { it }, it.substringAfter('\t', it).trim()) }),
-                )
-                app.planner.saveTask(task)
-                say("task '${task.title}' added")
-                title = ""; notes = ""; due = ""; reminder = ""; checklist = ""; links = ""
-            }
-        })
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TermButton(if (editingId == null) "add task" else "save task", filled = true, enabled = title.isNotBlank(), onClick = {
+                scope.launch {
+                    val items = checklist.lines().map { it.trim() }.filter { it.isNotEmpty() }
+                    val wasEditing = editingId != null
+                    val base = tasks.firstOrNull { it.id == editingId } ?: PlannerTask(title = title.trim())
+                    val task = base.copy(
+                        title = title.trim(), notes = notes, projectId = projectId,
+                        priority = priority.name, dueDay = parseDay(due), reminderAt = parseReminder(reminder),
+                        checklist = items.joinToString("\n") { "0|$it" },
+                        links = encodeRefs(textToRefs(links)),
+                        attachments = encodeRefs(textToRefs(attachments)),
+                    )
+                    app.planner.saveTask(task)
+                    say(if (wasEditing) "task '${task.title}' updated" else "task '${task.title}' added")
+                    clearForm()
+                }
+            }, modifier = Modifier.weight(1f))
+            if (editingId != null) TermButton("cancel edit", color = p.fgDim, onClick = { clearForm() }, modifier = Modifier.weight(1f))
+        }
     }
 
-    tasks.forEach { task ->
+    TerminalPanel(title = "filter / sort") {
+        TermTextField(value = query, onValueChange = { query = it }, label = "search", placeholder = "title or markdown")
+        Spacer(Modifier.height(6.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            listOf("created", "due", "priority", "title").forEach { s ->
+                TermButton(s, color = if (sortBy == s) p.yellow else p.fgDim, enabled = sortBy != s,
+                    onClick = { sortBy = s }, modifier = Modifier.weight(1f))
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        TermButton(if (showCompleted) "hide done" else "show done", color = p.cyan,
+            onClick = { showCompleted = !showCompleted }, modifier = Modifier.fillMaxWidth())
+    }
+
+    visibleTasks.forEach { task ->
         val projectName = projects.firstOrNull { it.id == task.projectId }?.name
         TerminalPanel(title = if (task.completed) "✓ ${task.title}" else task.title,
             titleColor = if (task.completed) p.fgDim else when (task.priorityValue) {
@@ -233,7 +303,7 @@ private fun TasksTab(
             }) {
             KeyValue("priority", task.priorityValue.label)
             task.dueDate?.let { KeyValue("due", it.toString()) }
-            task.reminderAt?.let { KeyValue("reminder", java.time.Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDateTime().toString()) }
+            task.reminderAt?.let { KeyValue("reminder", formatReminder(it)) }
             projectName?.let { KeyValue("project", it) }
             if (task.checklistItems.isNotEmpty()) {
                 Spacer(Modifier.height(4.dp))
@@ -253,11 +323,12 @@ private fun TasksTab(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TermButton(if (task.completed) "reopen" else "done", color = if (task.completed) p.fgDim else p.green,
                     onClick = { scope.launch { app.planner.setTaskCompleted(task, !task.completed); say(if (task.completed) "reopened" else "done") } })
+                TermButton("edit", color = p.cyan, onClick = { load(task) })
                 TermButton("delete", color = p.red, onClick = { scope.launch { app.planner.deleteTask(task); say("deleted task") } })
             }
         }
     }
-    if (tasks.isEmpty()) Comment("# no one-off tasks yet — habits are on the habits tab")
+    if (visibleTasks.isEmpty()) Comment(if (tasks.isEmpty()) "# no one-off tasks yet — habits are on the habits tab" else "# no tasks match this filter")
 }
 
 @Composable
@@ -279,6 +350,8 @@ private fun NotesTab(
         TermTextField(value = title, onValueChange = { title = it }, label = "title", placeholder = "trip packing")
         Spacer(Modifier.height(6.dp))
         TermTextField(value = body, onValueChange = { body = it }, label = "body (markdown)", singleLine = false, placeholder = "# heading")
+        Spacer(Modifier.height(6.dp))
+        MarkdownToolbar(onInsert = { body += it })
         Spacer(Modifier.height(6.dp))
         TermTextField(value = links, onValueChange = { links = it }, label = "context links (label<TAB>uri)", singleLine = false,
             placeholder = "watch\tpt://watch/1")
@@ -323,6 +396,8 @@ private fun NotesTab(
                 Spacer(Modifier.height(6.dp))
             }
             TermTextField(value = editing.value, onValueChange = { editing.value = it }, label = "edit (markdown)", singleLine = false)
+            Spacer(Modifier.height(6.dp))
+            MarkdownToolbar(onInsert = { editing.value += it })
             Spacer(Modifier.height(6.dp))
             Text("preview", color = p.fgDim, style = MaterialTheme.typography.labelSmall)
             MarkdownPreview(editing.value, onOpen = open, links = parseRefs(note.links), attachments = parseRefs(note.attachments))

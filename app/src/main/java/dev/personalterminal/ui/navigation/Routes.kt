@@ -32,6 +32,10 @@ object Routes {
     const val JOURNAL = "journal"
     const val GARDEN = "garden"
     const val PLANNER = "planner"
+    const val PLANNER_TAB = "planner?tab={tab}"
+
+    /** Open the planner directly on a tab: tasks / projects / notes. */
+    fun planner(tab: String = "tasks") = "planner?tab=$tab"
 
     fun habitEdit(id: Long = 0, routineId: Long? = null, name: String? = null) =
         "habit/edit?id=$id&routineId=${routineId ?: -1}" + (name?.let { "&name=${android.net.Uri.encode(it)}" } ?: "")

@@ -57,6 +57,7 @@ import dev.personalterminal.ui.watch.WatchStatsScreen
 import dev.personalterminal.ui.settings.ImportScreen
 import dev.personalterminal.ui.profile.ProfileScreen
 import dev.personalterminal.ui.planner.PlannerScreen
+import dev.personalterminal.ui.planner.QuickAddPlannerFab
 import dev.personalterminal.ui.routines.RoutinesScreen
 import dev.personalterminal.ui.settings.SettingsScreen
 import dev.personalterminal.ui.theme.Term
@@ -115,6 +116,13 @@ fun AppScaffold(app: PersonalTerminalApp, settings: Settings, startRoute: String
         containerColor = p.bg,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = { if (!expanded) StatusLine(nav, currentTab, settings) },
+        floatingActionButton = {
+            QuickAddPlannerFab(
+                app = app,
+                nav = nav,
+                visible = currentRoute?.substringBefore("?") != Routes.PLANNER.substringBefore("?"),
+            )
+        },
     ) { padding ->
         Row(Modifier.fillMaxSize().padding(padding)) {
             if (expanded) SideRail(nav, currentTab, settings, compact = foldX != null)
@@ -175,6 +183,12 @@ fun AppScaffold(app: PersonalTerminalApp, settings: Settings, startRoute: String
                 composable(Routes.JOURNAL) { JournalScreen(app, nav) }
                 composable(Routes.GARDEN) { dev.personalterminal.ui.garden.GardenScreen(app, nav) }
                 composable(Routes.PLANNER) { PlannerScreen(app, nav) }
+                composable(
+                    Routes.PLANNER_TAB,
+                    arguments = listOf(navArgument("tab") { type = NavType.StringType; defaultValue = "tasks" }),
+                ) {
+                    PlannerScreen(app, nav, it.arguments?.getString("tab") ?: "tasks")
+                }
                 composable(Routes.HABIT_DETAIL, arguments = listOf(navArgument("id") { type = NavType.LongType })) {
                     HabitDetailScreen(app, nav, it.arguments?.getLong("id") ?: 0L)
                 }

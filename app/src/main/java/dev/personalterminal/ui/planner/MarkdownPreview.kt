@@ -32,9 +32,9 @@ import dev.personalterminal.ui.components.TermButton
 import dev.personalterminal.ui.theme.Term
 
 /**
- * Read-only Markdown preview for planner notes. No WebView and no HTML: headings, bullets, task
- * boxes, quotes, code, bold/italic/links are rendered as styled text, and every inline or stored
- * link/attachment becomes a contextual chip the caller can open.
+ * Read-only Markdown preview for planner notes. No WebView and no HTML: headings, lists, task
+ * boxes, quotes, code, tables, rules, bold/italic/strike/links/images are rendered as styled text,
+ * and every inline or stored link/attachment/image becomes a contextual chip the caller can open.
  */
 @Composable
 fun MarkdownPreview(
@@ -47,46 +47,69 @@ fun MarkdownPreview(
     val p = Term.palette
     val lines = remember(markdown) { Markdown.parse(markdown) }
     val inlineLinks = remember(markdown) { Markdown.links(markdown) }
+    val inlineImages = remember(markdown) { Markdown.images(markdown) }
     val allLinks = remember(inlineLinks, links) { (inlineLinks + links).distinctBy { it.uri } }
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
         lines.forEach { line ->
             val prefix = when (line.kind) {
                 MarkdownKind.HEADING, MarkdownKind.SUBHEADING -> ""
                 MarkdownKind.BULLET -> "•  "
+                MarkdownKind.ORDERED -> line.marker
                 MarkdownKind.CHECK -> if (line.checked) "[x] " else "[ ] "
                 MarkdownKind.QUOTE -> "│  "
                 MarkdownKind.CODE -> "   "
+                MarkdownKind.RULE, MarkdownKind.TABLE -> ""
                 MarkdownKind.BODY -> ""
             }
             val base = when (line.kind) {
                 MarkdownKind.HEADING -> MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                 MarkdownKind.SUBHEADING -> MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
                 MarkdownKind.CODE -> MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace)
+                MarkdownKind.TABLE -> MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace)
                 else -> MaterialTheme.typography.bodyMedium
             }
             val textColor = when (line.kind) {
                 MarkdownKind.HEADING, MarkdownKind.SUBHEADING -> p.green
                 MarkdownKind.QUOTE -> p.fgDim
                 MarkdownKind.CODE -> p.cyan
+                MarkdownKind.RULE -> p.fgDim
+                MarkdownKind.TABLE -> if (line.tableHeader) p.green else p.fg
                 MarkdownKind.CHECK -> if (line.checked) p.fgDim else p.fg
                 else -> p.fg
             }
             Row(Modifier.fillMaxWidth()) {
                 if (prefix.isNotEmpty()) Text(prefix, color = p.fgDim, style = base)
-                Text(
-                    text = annotated(line.spans, p.cyan),
-                    color = textColor,
-                    style = base,
-                    modifier = Modifier.weight(1f, fill = false),
-                )
+                val content = when (line.kind) {
+                    MarkdownKind.TABLE -> line.cells.joinToString(" │ ")
+                    MarkdownKind.RULE -> "─".repeat(24)
+                    else -> null
+                }
+                if (content != null) {
+                    Text(
+                        text = content,
+                        color = textColor,
+                        style = base.copy(fontWeight = if (line.tableHeader) FontWeight.Bold else FontWeight.Normal),
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                } else {
+                    Text(
+                        text = annotated(line.spans, p.cyan),
+                        color = textColor,
+                        style = base,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                }
             }
         }
         if (allLinks.isNotEmpty()) {
             Spacer(Modifier.height(4.dp))
             Text("links:", color = p.fgDim, style = MaterialTheme.typography.labelSmall)
-            allLinks.forEach { ref ->
-                RefChip(ref, p.cyan, onOpen)
-            }
+            allLinks.forEach { ref -> RefChip(ref, p.cyan, onOpen) }
+        }
+        if (inlineImages.isNotEmpty()) {
+            Spacer(Modifier.height(4.dp))
+            Text("images:", color = p.fgDim, style = MaterialTheme.typography.labelSmall)
+            inlineImages.forEach { ref -> RefChip(ref, p.purple, onOpen) }
         }
         if (attachments.isNotEmpty()) {
             Spacer(Modifier.height(4.dp))
@@ -121,16 +144,17 @@ private fun annotated(spans: List<MarkdownSpan>, linkColor: Color): AnnotatedStr
         if (span.text.isEmpty()) return@forEach
         val style = when {
             span.code -> SpanStyle(fontFamily = FontFamily.Monospace, color = linkColor)
-            span.url != null -> SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)
+            span.imageUrl != null || span.url != null -> SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)
+            span.strike -> SpanStyle(textDecoration = TextDecoration.LineThrough)
             span.bold -> SpanStyle(fontWeight = FontWeight.Bold)
             span.italic -> SpanStyle(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
             else -> SpanStyle()
         }
-        withStyle(style) { append(span.text) }
+        withStyle(style) { append(if (span.imageUrl != null) "[image: ${span.text}]" else span.text) }
     }
 }
 
-/** A compact one-line rendering used in task rows and terminal prompts. */
+/** A compact one-line rendering used in task rows and terminal-style prompts. */
 @Composable
 fun MarkdownLine(text: String, style: TextStyle = MaterialTheme.typography.bodySmall) {
     Text(Markdown.plain(text), color = Term.palette.fgDim, style = style, maxLines = 1)
@@ -140,4 +164,38 @@ fun MarkdownLine(text: String, style: TextStyle = MaterialTheme.typography.bodyS
 @Composable
 fun MarkdownExportButton(label: String, onClick: () -> Unit) {
     TermButton(label, onClick = onClick, color = Term.palette.cyan)
+}
+
+/**
+ * Visible Markdown formatting toolbar for note editors. Each button appends a snippet at the end
+ * of the body; Compose's basic TextField has no selection API here, so this keeps it predictable.
+ */
+@Composable
+fun MarkdownToolbar(onInsert: (String) -> Unit, modifier: Modifier = Modifier) {
+    val p = Term.palette
+    val snippets = listOf(
+        "H1" to "\n# heading\n",
+        "H2" to "\n## subheading\n",
+        "bold" to " **bold**",
+        "italic" to " *italic*",
+        "strike" to " ~~strike~~",
+        "code" to " `code`",
+        "quote" to "\n> quote\n",
+        "check" to "\n- [ ] item\n",
+        "list" to "\n1. first\n2. second\n",
+        "rule" to "\n---\n",
+        "table" to "\n| item | qty |\n| --- | --- |\n| pen | 2 |\n",
+        "image" to "\n![alt](content://media/1)\n",
+        "link" to "\n[label](https://example.com)\n",
+    )
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text("insert markdown", color = p.fgDim, style = MaterialTheme.typography.labelSmall)
+        snippets.chunked(4).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                row.forEach { (label, snippet) ->
+                    TermButton(label, color = p.cyan, onClick = { onInsert(snippet) }, modifier = Modifier.weight(1f))
+                }
+            }
+        }
+    }
 }
