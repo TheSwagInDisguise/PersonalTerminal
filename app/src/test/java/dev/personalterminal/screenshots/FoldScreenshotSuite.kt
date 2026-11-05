@@ -118,7 +118,7 @@ private fun shootApp(
     val settings = baseSettings(onboarded = true)
     rule.setContent {
         TerminalTheme(settings) {
-            AppScaffold(app = app, settings = settings, startRoute = null, onRouteConsumed = { })
+            AppScaffold(app = app, settings = settings, startRoute = null, onRouteConsumed = { }, goldenMode = true)
         }
     }
     settleAndCapture(rule, activity, name)

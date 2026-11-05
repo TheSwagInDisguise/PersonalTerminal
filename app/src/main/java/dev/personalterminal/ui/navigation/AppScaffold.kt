@@ -13,16 +13,22 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalConfiguration
@@ -31,6 +37,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -42,6 +49,7 @@ import androidx.navigation.navArgument
 import dev.personalterminal.PersonalTerminalApp
 import dev.personalterminal.data.prefs.Settings
 import dev.personalterminal.ui.boot.BootScreen
+import dev.personalterminal.ui.components.TermButton
 import dev.personalterminal.ui.components.rememberWindowFold
 import dev.personalterminal.ui.habits.HabitDetailScreen
 import dev.personalterminal.ui.habits.HabitEditScreen
@@ -68,11 +76,14 @@ import dev.personalterminal.ui.watch.WatchDetailScreen
 import dev.personalterminal.ui.watch.WatchEditScreen
 import dev.personalterminal.ui.watch.WatchesScreen
 import dev.personalterminal.ui.watch.WearLogScreen
+import kotlinx.coroutines.launch
 
 @Composable
-fun AppScaffold(app: PersonalTerminalApp, settings: Settings, startRoute: String?, onRouteConsumed: () -> Unit) {
+fun AppScaffold(app: PersonalTerminalApp, settings: Settings, startRoute: String?, onRouteConsumed: () -> Unit, goldenMode: Boolean = false) {
     val nav = rememberNavController()
     val p = Term.palette
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
 
     if (!settings.onboarded) {
         BootScreen(app = app, onDone = { })
@@ -112,12 +123,41 @@ fun AppScaffold(app: PersonalTerminalApp, settings: Settings, startRoute: String
         selectedHabitIdState.value = null
     }
 
-    Scaffold(
+    fun openDrawerRoute(route: String) {
+        nav.navigate(route) { launchSingleTop = true }
+        scope.launch { drawerState.close() }
+    }
+
+    val scaffoldContent: @Composable () -> Unit = {
+        Scaffold(
         containerColor = p.bg,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        bottomBar = { if (!expanded) StatusLine(nav, currentTab, settings) },
+        topBar = {
+            if (!goldenMode) Column(Modifier.fillMaxWidth().background(p.bgAlt)) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TermButton("[≡ menu]", color = p.cyan, onClick = { scope.launch { drawerState.open() } })
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        "${settings.prompt} ${currentRoute?.substringBefore("?") ?: "today"}",
+                        color = p.green,
+                        style = MaterialTheme.typography.labelMedium,
+                        maxLines = 1,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TermButton("planner", color = p.yellow, onClick = { nav.navigate(Routes.PLANNER) { launchSingleTop = true } })
+                }
+                Box(Modifier.fillMaxWidth().height(1.dp).background(p.border))
+            }
+        },
+        bottomBar = { if (!expanded) StatusLine(nav, currentTab, settings, if (goldenMode) goldenTabs else appTabs) },
         floatingActionButton = {
-            QuickAddPlannerFab(
+            if (!goldenMode) QuickAddPlannerFab(
                 app = app,
                 nav = nav,
                 visible = currentRoute?.substringBefore("?") != Routes.PLANNER.substringBefore("?"),
@@ -125,7 +165,7 @@ fun AppScaffold(app: PersonalTerminalApp, settings: Settings, startRoute: String
         },
     ) { padding ->
         Row(Modifier.fillMaxSize().padding(padding)) {
-            if (expanded) SideRail(nav, currentTab, settings, compact = foldX != null)
+            if (expanded) SideRail(nav, currentTab, settings, compact = foldX != null, tabs = if (goldenMode) goldenTabs else appTabs, showProfileLink = !goldenMode)
             Box(Modifier.weight(1f).fillMaxHeight()) {
             // Keep one NavHost through fold/unfold so in-progress forms and back stack survive.
             // Only the list roots adopt master/detail; utility routes use the whole content area.
@@ -223,6 +263,39 @@ fun AppScaffold(app: PersonalTerminalApp, settings: Settings, startRoute: String
             }
         }
     }
+    }
+    if (goldenMode) {
+        scaffoldContent()
+    } else {
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            gesturesEnabled = true,
+            drawerContent = {
+                ModalDrawerSheet(modifier = Modifier.width(280.dp)) {
+                    Column(
+                        Modifier
+                            .fillMaxHeight()
+                            .background(p.bg)
+                            .windowInsetsPadding(WindowInsets.statusBars)
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(settings.prompt, color = p.green, style = MaterialTheme.typography.titleSmall, maxLines = 1)
+                        Text("profile & settings moved here · planner has its own tab", color = p.fgDim, style = MaterialTheme.typography.bodySmall)
+                        DrawerLink("profile", p.fg) { openDrawerRoute(Routes.PROFILE) }
+                        DrawerLink("settings", p.cyan) { openDrawerRoute(Routes.SETTINGS) }
+                        DrawerLink("planner / tasks", p.yellow) { openDrawerRoute(Routes.PLANNER) }
+                        DrawerLink("insights", p.purple) { openDrawerRoute(Routes.INSIGHTS) }
+                        DrawerLink("journal", p.green) { openDrawerRoute(Routes.JOURNAL) }
+                        Spacer(Modifier.weight(1f))
+                        Text("swipe from left or tap [≡ menu]", color = p.fgDim, style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            },
+        ) {
+            scaffoldContent()
+        }
+    }
 }
 
 /** A section list stays in the middle; its selected item's full screen detail occupies the far pane. */
@@ -263,7 +336,7 @@ private val CompactRailWidth = 88.dp
 
 /** Vertical tab strip for wide layouts (`[0:today]` … stacked on the left, like a tmux pane list). */
 @Composable
-private fun SideRail(nav: NavHostController, current: Tab?, settings: Settings, compact: Boolean = false) {
+private fun SideRail(nav: NavHostController, current: Tab?, settings: Settings, compact: Boolean = false, tabs: List<Tab> = appTabs, showProfileLink: Boolean = true) {
     val p = Term.palette
     Column(
         Modifier
@@ -279,7 +352,7 @@ private fun SideRail(nav: NavHostController, current: Tab?, settings: Settings, 
     ) {
         Text(if (compact) settings.prompt.take(7) + "…" else settings.prompt, color = p.green, style = MaterialTheme.typography.labelSmall, maxLines = 1, modifier = Modifier.padding(horizontal = 4.dp))
         Spacer(Modifier.height(8.dp))
-        Tab.entries.forEach { tab ->
+        tabs.forEach { tab ->
             val selected = tab == current
             Text(
                 text = if (selected) "[${tab.index}:${tab.label}]" else " ${tab.index}:${tab.label} ",
@@ -290,14 +363,20 @@ private fun SideRail(nav: NavHostController, current: Tab?, settings: Settings, 
             )
         }
         Spacer(Modifier.weight(1f))
-        Text("⚙ settings", color = p.fgDim, style = MaterialTheme.typography.labelSmall, modifier = Modifier.clickable { nav.navigate(Routes.SETTINGS) }.padding(4.dp))
+        if (showProfileLink) Text("profile", color = p.fgDim, style = MaterialTheme.typography.labelSmall, modifier = Modifier.fillMaxWidth().clickable { nav.navigate(Routes.PROFILE) }.padding(4.dp))
+        Text("⚙ settings", color = p.fgDim, style = MaterialTheme.typography.labelSmall, modifier = Modifier.fillMaxWidth().clickable { nav.navigate(Routes.SETTINGS) }.padding(4.dp))
     }
     Box(Modifier.width(1.dp).fillMaxHeight().background(p.border))
 }
 
+@Composable
+private fun DrawerLink(label: String, color: Color, onClick: () -> Unit) {
+    TermButton(label, color = color, onClick = onClick, modifier = Modifier.fillMaxWidth())
+}
+
 /** tmux-like status bar: `[0:today] 1:habits 2:timer 3:watch 4:profile        lvl 3 ` */
 @Composable
-internal fun StatusLine(nav: NavHostController, current: Tab?, settings: Settings) {
+internal fun StatusLine(nav: NavHostController, current: Tab?, settings: Settings, tabs: List<Tab> = goldenTabs) {
     val p = Term.palette
     // Fold 5 cover screen (~344dp): five "[n:label]" tabs don't fit on one line in the wider
     // terminal fonts (VT323 / Space Mono) – below 360dp the indices and brackets go.
@@ -312,7 +391,7 @@ internal fun StatusLine(nav: NavHostController, current: Tab?, settings: Setting
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Tab.entries.forEach { tab ->
+            tabs.forEach { tab ->
                 val selected = tab == current
                 val label = when {
                     narrow -> tab.label

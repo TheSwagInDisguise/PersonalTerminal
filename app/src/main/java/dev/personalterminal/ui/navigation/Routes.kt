@@ -52,5 +52,13 @@ enum class Tab(val route: String, val label: String, val index: Int) {
     HABITS(Routes.HABITS, "habits", 1),
     TIMER(Routes.timer(), "timer", 2),
     WATCH(Routes.WATCHES, "watch", 3),
+    PLANNER(Routes.PLANNER, "planner", 4),
     PROFILE(Routes.PROFILE, "profile", 4),
 }
+
+/**
+ * The real app's bottom tab bar: Profile has moved to the left drawer, so Planner gets the fifth
+ * slot. Screenshot goldens deliberately keep [goldenTabs] so no PNG has to change.
+ */
+val appTabs = listOf(Tab.TODAY, Tab.HABITS, Tab.TIMER, Tab.WATCH, Tab.PLANNER)
+val goldenTabs = listOf(Tab.TODAY, Tab.HABITS, Tab.TIMER, Tab.WATCH, Tab.PROFILE)
